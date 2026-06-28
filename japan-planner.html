@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Japan 2026">
+  <meta name="theme-color" content="#1a2744">
+  <title>Japan Rundreise 2026</title>
+
+  <!-- React + Babel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f5f3ee; }
+    #root { max-width: 480px; margin: 0 auto; min-height: 100vh; }
+    #loading { display:flex; align-items:center; justify-content:center; height:100vh; color:#9a9a9a; font-family:system-ui; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div id="loading">Reiseplan wird geladen…</div>
+  <div id="root"></div>
+
+  <script>
+    // ╔══════════════════════════════════════════════════════════╗
+    // ║           SUPABASE KONFIGURATION                         ║
+    // ║  Trage hier deine Werte aus dem Supabase-Dashboard ein  ║
+    // ╚══════════════════════════════════════════════════════════╝
+    const SUPABASE_URL  = "https://ytivcojuhpckbwbhxrfr.supabase.co";
+    const SUPABASE_KEY  = "sb_publishable_7W0SQWy-0MYAd2ED-chyUQ_OODZrbfo";
+
+    // Supabase-Client
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Speicher-Hilfsfunktionen
+    async function sbGet(key) {
+      try {
+        const { data } = await sb.from("planner_state").select("value").eq("key", key).maybeSingle();
+        return data ? data.value : null;
+      } catch(e) {
+        console.error("sbGet error:", e);
+        return localStorage.getItem(key); // Fallback
+      }
+    }
+    async function sbSet(key, value) {
+      try {
+        await sb.from("planner_state").upsert({ key, value, updated_at: new Date().toISOString() });
+        localStorage.setItem(key, value); // Lokaler Cache
+      } catch(e) {
+        console.error("sbSet error:", e);
+        localStorage.setItem(key, value); // Fallback
+      }
+    }
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+
+const STATIONS = [
+  { id:1, label:"Tokyo I", city:"Tokyo", emoji:"🗼", start:"Di 7. Juli", end:"Do 9. Juli", nights:2, solo:true, tag:"Ankunft & erste Eindrücke",
+    hotel:{ name:"APA Hotel Roppongi SIX", stars:"⭐⭐⭐", address:"Roppongi 2-3-11, Minato-ku, Tokyo", checkin:"ab 15:00 (bis 0:00)", checkout:"bis 10:00", maps:"https://maps.google.com/?q=35.6662355,139.7373987" },
+    dayPlans:[
+      { day:1, date:"Mi 8. Juli", items:[
+        { time:"Morgens", text:"Jetlag auskurieren, entspanntes Frühstück im Viertel" },
+        { time:"Vormittag", text:"Roppongi Hills erkunden – modernes Tokyo, guter Einstieg" },
+        { time:"Mittag", text:"Tsukiji Outer Market – bestes Sushi der Stadt" },
+        { time:"Nachmittag", text:"Hamarikyu Gardens – Spaziergang direkt am Wasser" },
+        { time:"Abend", text:"Shibuya Crossing bei Nacht – das Chaos einmal live erleben" },
+      ]},
+      { day:2, date:"Do 9. Juli · Abreisetag", items:[
+        { time:"Morgens", text:"Check-out bis 10:00, Gepäck einpacken" },
+        { time:"Vormittag", text:"Spaziergang durch Shinjuku auf dem Weg zum Bahnhof" },
+        { time:"Mittag", text:"Zug nach Ichinomiya – Ankunft ca. 13–14 Uhr, Check-in ab 15:00" },
+      ]},
+    ]},
+  { id:2, label:"Ichinomiya", city:"Ichinomiya", emoji:"🏄", start:"Do 9. Juli", end:"Mo 20. Juli", nights:11, solo:true, tag:"Surf-Aufenthalt", surfBase:true,
+    hotel:{ name:"Airbnb bei Mikako", stars:"", address:"73-10 Misakichōnakahara, Isumi-shi", checkin:"15:00", checkout:"11:00", maps:"https://maps.google.com/?q=35.3009884,140.4069229" },
+    dayPlans:[]},
+  { id:3, label:"Tokyo II", city:"Tokyo", emoji:"🗼", start:"Mo 20. Juli", end:"Fr 24. Juli", nights:4, solo:false, tag:"Freund stößt dazu",
+    hotel:{ name:"Hotel Niwa Tokyo", stars:"⭐⭐⭐⭐", address:"Kandamisaki-cho 1-1-16, Chiyoda-ku, Tokyo", checkin:"ab 15:00", checkout:"bis 11:00", maps:"https://maps.google.com/?q=35.7006393,139.7566894" },
+    dayPlans:[
+      { day:1, date:"Mo 20. Juli", items:[
+        { time:"Mittag", text:"Freund kommt dazu, gemeinsam einchecken" },
+        { time:"Nachmittag", text:"Shinjuku erkunden – Kabukicho, Golden Gai, Omoide Yokocho" },
+        { time:"Abend", text:"Gemeinsam essen, den Abend locker ausklingen lassen" },
+      ]},
+      { day:2, date:"Di 21. Juli", items:[
+        { time:"Früh", text:"Senso-ji Tempel in Asakusa – vor den Massen hingehen" },
+        { time:"Vormittag", text:"Nakamise-Einkaufsstraße schlendern, Mittagessen im Viertel" },
+        { time:"Nachmittag", text:"Bootsfahrt auf dem Sumida River nach Odaiba" },
+      ]},
+      { day:3, date:"Mi 22. Juli", items:[
+        { time:"Morgens", text:"Meiji-Schrein – ruhig, grün, beeindruckend" },
+        { time:"Vormittag", text:"Harajuku Straßen schlendern" },
+        { time:"Nachmittag", text:"Shibuya Crossing & Shibuya Sky Dachterrasse – beste Aussicht der Stadt" },
+      ]},
+      { day:4, date:"Do 23. Juli", items:[
+        { time:"Vormittag", text:"Akihabara – faszinierendes Erlebnis, auch für Nicht-Gamer" },
+        { time:"Mittag", text:"Mittagessen in einem Ramen-Restaurant" },
+        { time:"Nachmittag", text:"Frei für eigene Entdeckungen" },
+        { time:"Abend", text:"Abschiedsessen vor der Weiterreise" },
+      ]},
+    ]},
+  { id:4, label:"Fuji-See", city:"Fujikawaguchiko", emoji:"🗻", start:"Fr 24. Juli", end:"So 26. Juli", nights:2, solo:false, tag:"Fuji-Fünf-Seen-Gebiet",
+    hotel:{ name:"HOTORI no HOTEL BAN", stars:"", address:"Kawaguchi 3086, Fujikawaguchiko, Yamanashi", checkin:"15:00–20:00", checkout:"7:00–10:00", maps:"https://maps.google.com/?q=35.5221212,138.7702438" },
+    dayPlans:[
+      { day:1, date:"Fr 24. Juli", items:[
+        { time:"Nachmittag", text:"Ankunft, Check-in im HOTORI no HOTEL BAN" },
+        { time:"Abend", text:"Kawaguchi-See – bei guter Sicht spiegelt sich der Fuji im Wasser (Juli oft bewölkt, Alternativprogramm: Onsen am See)" },
+        { time:"Abend", text:"Entspanntes Abendessen am See" },
+      ]},
+      { day:2, date:"Sa 25. Juli", items:[
+        { time:"Früh", text:"Chureito-Pagode – klassischste Fuji-Aussicht, etwas Treppensteigen lohnt sich" },
+        { time:"Vormittag", text:"Fujikyuko-Bahn – Fuji immer im Blick" },
+        { time:"Nachmittag", text:"Fahrradtour um den See oder Kanufahren – je nach Lust" },
+        { time:"Abend", text:"Fuji beim Sonnenuntergang von der Hotelterrasse genießen" },
+      ]},
+    ]},
+  { id:5, label:"Matsumoto", city:"Matsumoto", emoji:"🏯", start:"So 26. Juli", end:"Mo 27. Juli", nights:1, solo:false, tag:"Schwarze Burg",
+    hotel:{ name:"Hotel Buena Vista", stars:"", address:"1-2-1 Honjo, Matsumoto, Nagano", checkin:"26. Juli", checkout:"27. Juli", maps:"https://maps.google.com/?q=36.2277735,137.967994" },
+    dayPlans:[
+      { day:1, date:"So 26. Juli", items:[
+        { time:"Vormittag", text:"Ankunft per Zug, Gepäck abgeben oder einchecken" },
+        { time:"Mittag", text:"Matsumoto-Burg – eine der schönsten Originalburgen Japans, komplett schwarz" },
+        { time:"Nachmittag", text:"Nakamachi-Straße – alte Kaufmannshäuser, kleine Läden und Cafés" },
+        { time:"Abend", text:"Lokales Restaurant – Soba probieren, Matsumoto ist dafür berühmt" },
+      ]},
+    ]},
+  { id:6, label:"Takayama", city:"Takayama", emoji:"🍶", start:"Mo 27. Juli", end:"Di 28. Juli", nights:1, solo:false, tag:"Historische Altstadt",
+    hotel:{ name:"Hotel and Spa Gift Takayama", stars:"", address:"6-22 Tenmanmachi, Takayama, Gifu", checkin:"27. Juli", checkout:"28. Juli", maps:"https://maps.google.com/?q=36.142123,137.2534112" },
+    dayPlans:[
+      { day:1, date:"Mo 27. Juli", items:[
+        { time:"Mittag", text:"Ankunft per Direktbus vom Matsumoto Bus Terminal, Gepäck ins Hotel" },
+        { time:"Nachmittag", text:"Sanmachi Suji – historische Altstadt mit perfekt erhaltenen Edo-Häusern" },
+        { time:"Nachmittag", text:"Sake-Verkostung in einer der alten Brauereien" },
+        { time:"Spätnachmittag", text:"Higashiyama Tempelweg – ruhiger Spaziergang durch mehrere Tempel" },
+        { time:"Abend", text:"Hida-Rindfleisch probieren – die lokale Spezialität" },
+      ]},
+    ]},
+  { id:7, label:"Kanazawa", city:"Kanazawa", emoji:"🌸", start:"Di 28. Juli", end:"Do 30. Juli", nights:2, solo:false, tag:"Kenroku-en & Tateyama",
+    hotel:{ name:"Tokyu Stay Kanazawa", stars:"", address:"4-50 Minamicho, Kanazawa, Ishikawa", checkin:"28. Juli", checkout:"30. Juli", maps:"https://maps.google.com/?q=36.567514,136.6539198" },
+    dayPlans:[
+      { day:1, date:"Di 28. Juli", items:[
+        { time:"Vormittag", text:"Ankunft, einchecken" },
+        { time:"Mittag", text:"Kenroku-en – einer der drei schönsten Gärten Japans" },
+        { time:"Nachmittag", text:"Nagamachi Samurai-Viertel – alte Lehmwände und Wasserkanäle" },
+        { time:"Abend", text:"Omicho-Markt – Meeresfrüchte essen, Kanazawa ist für frischen Fisch bekannt" },
+      ]},
+      { day:2, date:"Mi 29. Juli · Tateyama-Kurobe", items:[
+        { time:"Früh", text:"Frühzug nach Toyama (ca. 45 Min)" },
+        { time:"Vormittag", text:"Seilbahn hoch nach Bijodaira, weiter per Trolleybus nach Murodo (2.450m)" },
+        { time:"Mittag", text:"Murodo Plateau (2.450m) – alpine Landschaft, Mikurigaike-See, Wanderwege. Schneewände nur bis Ende Juni." },
+        { time:"Nachmittag", text:"Rückweg gleiche Route" },
+        { time:"Abend", text:"Zurück in Kanazawa, entspannt Abendessen" },
+      ]},
+    ]},
+  { id:8, label:"Kyoto", city:"Kyoto", emoji:"⛩️", start:"Do 30. Juli", end:"So 2. Aug", nights:3, solo:false, tag:"Tempel, Arashiyama, Fushimi",
+    hotel:{ name:"Kyo Hotel Kishotei Gosho Minami", stars:"", address:"384-1 Kawaracho, Nakagyo-ku, Kyoto", checkin:"30. Juli", checkout:"2. Aug", maps:"https://maps.google.com/?q=35.0128568,135.7610903" },
+    dayPlans:[
+      { day:1, date:"Do 30. Juli", items:[
+        { time:"Mittag", text:"Ankunft per Shinkansen, einchecken" },
+        { time:"Nachmittag", text:"Gion – das berühmte Geisha-Viertel, schön auch tagsüber" },
+        { time:"Abend", text:"Hanamikoji-Straße – respektvolles Erkunden (Fotografierverbot auf Privatwegen beachten!), Abendessen im Viertel" },
+      ]},
+      { day:2, date:"Fr 31. Juli", items:[
+        { time:"Früh", text:"Arashiyama Bambushain – vor den Massen hingehen" },
+        { time:"Vormittag", text:"Bootsfahrt auf dem Oi-Fluss" },
+        { time:"Mittag", text:"Tenryu-ji Tempel mit berühmtem Zen-Garten" },
+        { time:"Nachmittag", text:"Rikscha-Fahrt durch das Viertel zurück" },
+      ]},
+      { day:3, date:"Sa 1. Aug", items:[
+        { time:"Früh", text:"Fushimi Inari – die tausend Torii-Tore, am besten vor 8 Uhr" },
+        { time:"Mittag", text:"Nishiki-Markt – Kyotos Küche, Street Food probieren" },
+        { time:"Nachmittag", text:"Frei zum Bummeln oder nochmal einen Tempel nach Wahl" },
+      ]},
+    ]},
+  { id:9, label:"Nara", city:"Nara", emoji:"🦌", start:"So 2. Aug", end:"So 2. Aug", nights:0, solo:false, tag:"Tagesausflug auf dem Weg nach Osaka", dayTrip:true, hotel:null,
+    dayPlans:[
+      { day:0, date:"So 2. Aug", items:[
+        { time:"1. Aug · Morgens", text:"Koffer per Yamato Takkyubin vom Kyoto-Hotel zum Osaka-Hotel aufgeben (~1.000–1.500 ¥ · Lieferung am 2. Aug)" },
+        { time:"Morgens", text:"Check-out Kyoto – Koffer wurde bereits weitergeleitet, nur Tagesrucksack mitnehmen" },
+        { time:"Vormittag", text:"Per Kintetsu nach Nara (30 Min)" },
+        { time:"Vormittag", text:"Tōdai-ji – größte Holzstruktur der Welt, mit dem riesigen Buddha" },
+        { time:"Mittag", text:"Nara-Park – frei laufende Hirsche, Mittagessen im Viertel" },
+        { time:"Nachmittag", text:"Direkt per Zug nach Osaka – Koffer wartet bereits im Hotel" },
+      ]},
+    ]},
+  { id:10, label:"Osaka", city:"Osaka", emoji:"🍜", start:"So 2. Aug", end:"Mo 3. Aug", nights:1, solo:false, tag:"Dotonbori & Streetfood",
+    hotel:{ name:"Hotel Noum Osaka", stars:"", address:"4-1-18 Tenma, Kita-ku, Osaka", checkin:"2. Aug", checkout:"3. Aug", maps:"https://maps.google.com/?q=34.6922866,135.51462" },
+    dayPlans:[
+      { day:1, date:"So 2. Aug", items:[
+        { time:"Nachmittag", text:"Ankunft aus Nara, einchecken" },
+        { time:"Abend", text:"Dotonbori – das bunte Neon-Viertel, Street Food: Takoyaki, Okonomiyaki, Kushikatsu" },
+        { time:"Abend", text:"Shinsaibashi-Einkaufsstraße bummeln – Osaka lebt nachts" },
+      ]},
+    ]},
+  { id:11, label:"Hiroshima", city:"Hiroshima", emoji:"🕊️", start:"Mo 3. Aug", end:"Mi 5. Aug", nights:2, solo:false, tag:"Peace Memorial & Miyajima",
+    hotel:{ name:"Grand Prince Hotel Hiroshima", stars:"", address:"23-1 Motoujinamachi, Minami-ku, Hiroshima", checkin:"3. Aug", checkout:"5. Aug", maps:"https://maps.google.com/?q=34.3427391,132.4640808" },
+    dayPlans:[
+      { day:1, date:"Mo 3. Aug", items:[
+        { time:"Vormittag", text:"Ankunft per Shinkansen, einchecken" },
+        { time:"Mittag", text:"Peace Memorial Park – Epizentrum, Mahnmal und Museum" },
+        { time:"Nachmittag", text:"Durch die moderne, lebendige Stadt laufen" },
+        { time:"Abend", text:"Hiroshima-Okonomiyaki – die lokale Version mit Nudeln" },
+      ]},
+      { day:2, date:"Di 4. Aug · Miyajima", items:[
+        { time:"Morgens", text:"Fähre nach Miyajima (mit JR Pass kostenlos)" },
+        { time:"Vormittag", text:"Schwimmendes Torii-Tor bei Flut – eines der ikonischsten Bilder Japans" },
+        { time:"Mittag", text:"Wanderung auf den Mount Misen – Panoramablick über die Insel" },
+        { time:"Nachmittag", text:"Hirsche auf der Insel, entspannter Rückweg per Fähre" },
+        { time:"Abend", text:"Letzter gemeinsamer Abend in Hiroshima" },
+      ]},
+    ]},
+  { id:12, label:"Tokyo III", city:"Tokyo", emoji:"✈️", start:"Mi 5. Aug", end:"Do 6. Aug", nights:1, solo:true, tag:"Rückflug nach Frankfurt", returnFlight:true, hotel:null,
+    dayPlans:[
+      { day:1, date:"Mi 5. Aug", items:[
+        { time:"Morgens", text:"Letzter Morgen in Hiroshima – entspannt frühstücken" },
+        { time:"Vormittag", text:"Kurzer Spaziergang Peace Memorial Park" },
+        { time:"Mittag", text:"Check-out, Shinkansen Richtung Tokyo ca. 13–14 Uhr (Nozomi, ca. 4h)" },
+        { time:"Abend", text:"Ankunft Tokyo, direkt zum Flughafenhotel – früh schlafen" },
+      ]},
+    ]},
+];
+
+const TODOS = [
+  { id:"t1", group:"Vor der Reise", text:"Einzeltickets kaufen statt JR Pass (Pass kostet 80.000 ¥, Streckenwert nur 48.350 ¥)", note:"Shinkansen-Reservierungen frühzeitig online buchen: jr-central.co.jp oder jr-odekake.net" },
+  { id:"t2", group:"Vor der Reise", text:"Pocket WiFi oder SIM-Karte für Japan vorbestellen" },
+  { id:"t3", group:"Vor der Reise", text:"IC Card (Suica) – am Flughafen oder per App einrichten" },
+  { id:"t15", group:"Vor der Reise", text:"Komfort-Hotel Haneda buchen (z.B. THE GATE HOTEL by HULIC · Nacht 5./6. Aug)" },
+  { id:"t4", group:"Anreise · 6./7. Juli", text:"Hinflug: FRA Terminal 1, ab 20:45 · NH224 (ANA Direktflug)" },
+  { id:"t4b", group:"Anreise · 6./7. Juli", text:"Transfer HND Terminal 2 → Hotel Tokyo (Ankunft 16:50, 7. Juli)" },
+  { id:"t5", group:"Anreise · 6./7. Juli", text:"JR Pass aktivieren (HND Flughafen oder Shinjuku)" },
+  { id:"t6", group:"Tokyo II → Fuji-See · 24. Juli", text:"Shinkansen Tokyo → Otsuki + Fujikyuko-Linie → Kawaguchiko" },
+  { id:"t7", group:"Fuji-See → Matsumoto · 26. Juli", text:"Zug Kawaguchiko → Matsumoto (via Otsuki, ca. 2,5h)" },
+  { id:"t8", group:"Matsumoto → Takayama · 27. Juli", text:"Direktbus Matsumoto Bus Terminal → Takayama Bus Center (~2h 30min, ~3.800 ¥)", note:"Kein JR Pass. Online buchen: nouhibus.co.jp oder alpico.co.jp" },
+  { id:"t9", group:"Takayama → Kanazawa · 28. Juli", text:"Bus Takayama → Kanazawa (Nohi-Bus, ca. 2,5h)", note:"Sehr beliebt – am besten online vorbuchen" },
+  { id:"t9b", group:"Kanazawa · 29. Juli", text:"Tateyama-Kurobe Alpenroute Tickets vorbuchen", note:"Im Juli sehr ausgebucht – so früh wie möglich buchen!" },
+  { id:"t10", group:"Kanazawa → Kyoto · 30. Juli", text:"Shinkansen Kanazawa → Kyoto (Kagayaki, ca. 1h)" },
+  { id:"t11", group:"Nara-Ausflug · 2. Aug", text:"Gepäckschließfach Kyoto Bahnhof für Nara-Ausflug" },
+  { id:"t12", group:"Osaka → Hiroshima · 3. Aug", text:"Shinkansen Osaka → Hiroshima (Nozomi, ca. 1h)" },
+  { id:"t13", group:"Rückreise · 5. Aug", text:"Shinkansen Hiroshima → Tokyo (Nozomi, ca. 4h)", note:"Entspannt – Abflug erst 09:40 am nächsten Morgen" },
+  { id:"t14", group:"Rückreise · 6. Aug", text:"Hotel Haneda → HND Terminal 2 (Abflug NH223 09:40)", note:"Direkt verbunden – mind. 3h vorher am Terminal (Abflug 09:40 → spätestens 06:40 Uhr)" },
+];
+
+
+const CONNECTIONS = [
+  { id:"c1", from:"HND Flughafen", to:"Tokyo Hotel", date:"7. Juli", jr:false,
+    option:"Keikyu Line → Toei Asakusa Line", duration:"~50 Min", price:"640 ¥",
+    note:"Umsteigen in Sengakuji. Alternativ: Tokyo Monorail → Yamanote (etwas länger, JR-abgedeckt)" },
+  { id:"c2", from:"Tokyo", to:"Ichinomiya", date:"9. Juli", jr:true,
+    option:"JR Sobu-Linie → JR Sotobo-Linie (ab Tokyo Bahnhof)", duration:"~90 Min", price:"1.980 ¥",
+    note:"Züge stündlich. Ziel: Bahnhof Ohara, dann kurze Fahrt/Taxi zur Unterkunft" },
+  { id:"c3", from:"Ichinomiya", to:"Tokyo", date:"20. Juli", jr:true,
+    option:"JR Sotobo-Linie → JR Sobu-Linie", duration:"~90 Min", price:"1.980 ¥",
+    note:"Rückweg gleiche Strecke" },
+  { id:"c4", from:"Tokyo", to:"Fujikawaguchiko", date:"24. Juli", jr:"partial",
+    option:"Limited Express Kaiji ab Shinjuku → Umstieg Otsuki → Fujikyuko Line", duration:"~2h", price:"4.270 ¥ + 1.140 ¥",
+    note:"Kaiji ist KEIN Shinkansen – es ist ein Limited Express auf der Chuo-Linie. Fujikyuko Line separat kaufen. Alternativ: Fuji Excursion Direktzug ab Shinjuku (saisonal, kein Umstieg)" },
+  { id:"c5", from:"Fujikawaguchiko", to:"Matsumoto", date:"26. Juli", jr:true,
+    option:"Fujikyuko Line → Umstieg Otsuki → JR Chuo-Linie nach Matsumoto", duration:"~3–4h", price:"~3.020 ¥ + 1.140 ¥",
+    note:"Umstieg in Otsuki erforderlich. Fujikyuko Line (1.140 ¥) nicht JR-gedeckt. Alternativ: Direktbus Kawaguchiko → Matsumoto (~2h, ~2.200 ¥)" },
+  { id:"c6", from:"Matsumoto", to:"Takayama", date:"27. Juli", jr:false,
+    option:"Direktbus Matsumoto Bus Terminal → Takayama Bus Center", duration:"~2h 30min", price:"~3.800 ¥",
+    note:"Kein JR-Anschluss – Bus ist die praktischste Option. Reservierung empfohlen: nouhibus.co.jp oder alpico.co.jp" },
+  { id:"c7", from:"Takayama", to:"Kanazawa", date:"28. Juli", jr:false,
+    option:"Nohi Bus über Shirakawa-go nach Kanazawa", duration:"~2h 15min–3h", price:"4.200 ¥",
+    note:"Kein JR Pass. Reservierungspflichtig – vorab buchen: nouhibus.co.jp. Tipp: Kurzstopp in Shirakawa-go (UNESCO) möglich, dann zweite Fahrt nach Kanazawa" },
+  { id:"c8", from:"Kanazawa", to:"Tateyama/Murodo & zurück", date:"29. Juli", jr:false,
+    option:"Ainokaze Railway → Toyama Chitetsu + Alpenroute (Rundticket)", duration:"Ganztag", price:"~14.550 ¥",
+    note:"Kanazawa→Toyama: 1.080 ¥ · Toyama→Tateyama: 1.230 ¥ · Alpenroute Hin/Rück: ~12.240 ¥. Tickets vorab buchen: alpen-route.com. ⚠️ Schneewände nur bis Ende Juni – im Juli: Murodo, Mikurigaike-See, alpine Wanderwege" },
+  { id:"c9", from:"Kanazawa", to:"Kyoto", date:"30. Juli", jr:false,
+    option:"Hokuriku-Shinkansen Hakutaka → Umstieg Tsuruga → Thunderbird nach Kyoto", duration:"~2h", price:"7.020 ¥",
+    note:"Umstieg in Tsuruga erforderlich (seit Streckenverlängerung März 2024). Thunderbird ab Tsuruga bis Kyoto ~45 Min. Einzelticket kaufen." },
+  { id:"c10", from:"Kyoto", to:"Nara → Osaka", date:"2. Aug", jr:true,
+    option:"Kintetsu nach Nara, dann JR Yamatoji direkt nach Osaka", duration:"Nara ~45 Min · Nara→Osaka ~35 Min", price:"610 ¥ + 480 ¥",
+    note:"💡 Koffer am Vorabend per Yamato Takkyubin nach Osaka senden – dann direkt nach Osaka ohne Umweg nach Kyoto" },
+
+  { id:"c12", from:"Osaka", to:"Hiroshima", date:"3. Aug", jr:true,
+    option:"Shinkansen Sakura (JR Pass) oder Nozomi (schneller, kein JR Pass)", duration:"~1h (Sakura) / ~50 Min (Nozomi)", price:"9.440 ¥",
+    note:"Mit JR Pass: Sakura oder Hikari nehmen, NICHT Nozomi – der ist nicht abgedeckt" },
+  { id:"c13", from:"Hiroshima", to:"Tokyo", date:"5. Aug", jr:true,
+    option:"Shinkansen Hikari (JR Pass) oder Nozomi (schneller, kein JR Pass)", duration:"~5h (Hikari) / ~4h (Nozomi)", price:"19.440 ¥",
+    note:"Größte Einzelersparnis mit JR Pass. Mit Hikari: 1 Zwischenstopp, komfortabel" },
+  { id:"c14", from:"Tokyo Hotel", to:"HND Flughafen", date:"6. Aug", jr:false,
+    option:"Keikyu Line → HND Terminal 2", duration:"~40 Min", price:"650 ¥",
+    note:"Abflug NH223 um 09:40 – spätestens 07:30 Uhr aufbrechen" },
+];
+
+const JR_ANALYSIS = {
+  passPrice: 80000,
+  coveredValue: 48350,
+  savings: -31650,
+  recommendation: "Einzeltickets empfohlen",
+  tip: "Aktueller Preis (2026): 80.000 ¥. Abgedeckte Strecken: ~48.350 ¥. Der Pass kostet ~31.650 ¥ mehr als Einzeltickets – nicht empfehlenswert für diese Route."
+};
+
+const PREP = [
+  { id:"p1", group:"Dokumente & Einreise", text:"Reisepass prüfen – muss für gesamten Aufenthalt gültig sein (bis mind. 6. Aug 2026)", note:"Japan verlangt keine 6-Monate-Regel. ANA-Beförderungsbedingungen prüfen – Airline kann strengere Regeln haben" },
+  { id:"p2", group:"Dokumente & Einreise", text:"Kein Visum nötig – Deutsche dürfen bis 90 Tage visumfrei einreisen" },
+  { id:"p3", group:"Dokumente & Einreise", text:"Visit Japan Web Registrierung – Online-Einreisekarte ausfüllen", note:"Freiwillig, aber empfohlen: vjw.digital.go.jp – beschleunigt Einreise und Zollanmeldung" },
+  { id:"p4", group:"Dokumente & Einreise", text:"Kopien aller wichtigen Dokumente anfertigen", note:"Digital (Cloud) + 1x physisch separat vom Original aufbewahren" },
+  { id:"p5", group:"Dokumente & Einreise", text:"Deutsche Botschaft Tokyo notieren: +81-3-5791-7700" },
+
+  { id:"p6", group:"Versicherungen", text:"Auslandskrankenversicherung abschließen", note:"Japan hat kein Gegenseitigkeitsabkommen mit Deutschland – Pflicht!" },
+  { id:"p7", group:"Versicherungen", text:"Reiserücktrittsversicherung prüfen", note:"Besonders wichtig nach dem Flugtausch – neue Police nötig?" },
+  { id:"p8", group:"Versicherungen", text:"Gepäckversicherung prüfen" },
+
+  { id:"p9", group:"Gesundheit", text:"Reisemedizinische Beratung – individuellen Impfstatus prüfen lassen", note:"Kein pauschaler Pflichtimpfschutz für Japan. Arzt je nach Route, Aktivitäten und Vorgeschichte befragen" },
+  { id:"p10", group:"Gesundheit", text:"Reiseapotheke zusammenstellen", note:"Pflaster, Schmerzmittel, Magenmittel, Sonnencreme (hoher LSF!), Insektenschutz" },
+  { id:"p11", group:"Gesundheit", text:"Eigene Medikamente in ausreichender Menge einpacken", note:"Englisches Rezept/Beipackzettel mitnehmen – viele Wirkstoffe in Japan verboten" },
+  { id:"p12", group:"Gesundheit", text:"Hitze beachten: Juli/August in Japan 30–35°C mit hoher Luftfeuchtigkeit", note:"Leichte, atmungsaktive Kleidung einpacken. Regenponcho für Taifun-Saison" },
+
+  { id:"p13", group:"Finanzen", text:"Japanische Yen besorgen – Japan ist noch sehr bargeldorientiert", note:"Ca. 50.000–100.000 ¥ Bargeld für den Start empfohlen" },
+  { id:"p14", group:"Finanzen", text:"Kreditkarte mit niedrigen Auslandsgebühren prüfen", note:"Visa/Mastercard werden akzeptiert, aber nicht überall" },
+  { id:"p15", group:"Finanzen", text:"7-Eleven & Japan Post ATMs funktionieren mit europäischen Karten zuverlässig" },
+
+  { id:"p16", group:"Apps & Kommunikation", text:"Google Translate: Japanisch offline herunterladen (Kamera-Funktion für Speisekarten!)" },
+  { id:"p17", group:"Apps & Kommunikation", text:"Google Maps Japan offline speichern", note:"Alle 12 Stationen als Offline-Karte laden" },
+  { id:"p18", group:"Apps & Kommunikation", text:"Navitime oder Hyperdia installieren – beste Apps für Zugverbindungen in Japan" },
+  { id:"p19", group:"Apps & Kommunikation", text:"IC Card App (Suica) einrichten – falls Apple Pay verfügbar" },
+
+  { id:"p20", group:"Technik & Gepäck", text:"Reiseadapter einpacken – Japan nutzt Typ A (wie USA), 110V", note:"Europäische Geräte funktionieren meist trotzdem (Universalnetzteil prüfen)" },
+  { id:"p21", group:"Technik & Gepäck", text:"Powerbank einpacken (max. 100Wh fürs Handgepäck)", note:"Im heißen Sommer entlädt sich der Akku schneller" },
+  { id:"p22", group:"Technik & Gepäck", text:"Kofferwaage einpacken – Freigepäck ANA prüfen (Economy: 23 kg)" },
+
+  { id:"p27", group:"Kultur & Praktisches", text:"Yamato Takkyubin für Kyoto → Osaka (1. Aug abends beauftragen)", note:"Koffer wird über Nacht weitergeleitet – am Morgen des 2. Aug ist er bereits im Osaka-Hotel" },
+  { id:"p23", group:"Kultur & Praktisches", text:"Onsen-Etikette informieren", note:"Tattoos können den Zutritt zu Onsen verweigern – vorab anfragen!" },
+  { id:"p24", group:"Kultur & Praktisches", text:"Trinkgeld in Japan unüblich – niemals Trinkgeld geben" },
+  { id:"p25", group:"Kultur & Praktisches", text:"Stäbchen-Etikette: nicht aufrecht in Reis stecken, nicht herumreichen" },
+  { id:"p26", group:"Kultur & Praktisches", text:"Müll immer einpacken – in Japan gibt es kaum öffentliche Mülleimer" },
+];
+
+const navy = "#1a2744", green = "#1a6044", red = "#c9372e";
+
+  const [activeStation, setActiveStation] = useState(1);
+  const [activeTab, setActiveTab] = useState("cities");
+  const [checked, setChecked] = useState({});
+  const [prepChecked, setPrepChecked] = useState({});
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await sbGet("jp2026-checked");
+        if (r) setChecked(JSON.parse(r));
+        const p = await sbGet("jp2026-prep");
+        if (p) setPrepChecked(JSON.parse(p));
+      } catch(e) {}
+      setLoaded(true);
+    })();
+  }, []);
+
+  const toggleTodo = async (id) => {
+    const next = { ...checked, [id]: !checked[id] };
+    setChecked(next);
+    await sbSet("jp2026-checked", JSON.stringify(next));
+  };
+
+  const togglePrep = async (id) => {
+    const next = { ...prepChecked, [id]: !prepChecked[id] };
+    setPrepChecked(next);
+    await sbSet("jp2026-prep", JSON.stringify(next));
+  };
+
+  const prepDone = PREP.filter(p => prepChecked[p.id]).length;
+  const prepTotal = PREP.length;
+  const prepGroups = [...new Set(PREP.map(p => p.group))];
+  const s = STATIONS.find(x => x.id === activeStation);
+  const done = TODOS.filter(t => checked[t.id]).length;
+  const total = TODOS.length;
+  const pct = Math.round((done / total) * 100);
+  const groups = [...new Set(TODOS.map(t => t.group))];
+
+  if (!loaded) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#f5f3ee",color:"#9a9a9a",fontSize:14}}>
+      Lade Reiseplan…
+    </div>
+  );
+
+  return (
+    <div style={{fontFamily:"system-ui,-apple-system,sans-serif",background:"#f5f3ee",minHeight:"100vh",maxWidth:480,margin:"0 auto"}}>
+
+      <div style={{background:navy,color:"white",padding:"16px 18px 0"}}>
+        <div style={{fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",color:"#6b80aa",marginBottom:4}}>Japan Rundreise 2026 · Klaus</div>
+        <div style={{fontSize:20,fontWeight:700}}>7. Juli – 6. August</div>
+        <div style={{fontSize:12,color:"#6b80aa",marginTop:3}}>30 Nächte · 12 Stationen</div>
+        <div style={{display:"flex",marginTop:14,borderBottom:"1px solid #2a3a60"}}>
+          {[["cities","Reiseplan"],["connections","Verbindungen"],["transport",`Buchungen (${done}/${total})`],["prep",`Vorbereitung (${prepDone}/${prepTotal})`]].map(([key,label]) => (
+            <button key={key} onClick={() => setActiveTab(key)} style={{
+              padding:"9px 16px",fontSize:13,background:"none",border:"none",cursor:"pointer",whiteSpace:"nowrap",fontWeight:500,
+              color: activeTab===key ? "white" : "#5a6f9a",
+              borderBottom: activeTab===key ? `2px solid ${red}` : "2px solid transparent"
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === "cities" && (
+        <>
+          <div style={{display:"flex",gap:8,padding:"12px 14px",background:"white",borderBottom:"1px solid #e5e2db",overflowX:"auto",scrollbarWidth:"none"}}>
+            {STATIONS.map(st => (
+              <button key={st.id} onClick={() => setActiveStation(st.id)} style={{
+                flexShrink:0,padding:"6px 13px",borderRadius:20,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",
+                background: st.id===activeStation ? (st.solo ? navy : green) : "#f0ede6",
+                color: st.id===activeStation ? "white" : "#5a5a5a"
+              }}>{st.emoji} {st.label}</button>
+            ))}
+          </div>
+
+          <div style={{padding:14}}>
+            <div style={{background:"white",borderRadius:12,padding:16,marginBottom:12,borderLeft:`4px solid ${s.solo ? navy : green}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontSize:21,fontWeight:700}}>{s.emoji} {s.city}</div>
+                  <div style={{fontSize:12,color:"#7a7a7a",marginTop:3}}>{s.start} → {s.end}</div>
+                  <div style={{fontSize:12,color:"#9a9a9a",marginTop:1}}>
+                    {s.surfBase?"11 Nächte · Surf-Aufenthalt":s.dayTrip?"Tagesausflug":s.returnFlight?`${s.nights} Nacht · Rückflug`:`${s.nights} ${s.nights===1?"Nacht":"Nächte"}`}
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <span style={{display:"inline-block",padding:"4px 10px",borderRadius:12,fontSize:11,fontWeight:600,background:s.solo?"#e8ecf5":"#e5f2ea",color:s.solo?navy:green}}>
+                    {s.solo ? "Alleine" : "Mit Freund"}
+                  </span>
+                  <div style={{fontSize:11,color:"#9a9a9a",marginTop:5}}>{s.tag}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Day plans */}
+            {s.surfBase ? (
+              <>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",margin:"14px 0 8px 2px"}}>Aufenthalt</div>
+                <div style={{background:"white",borderRadius:10,padding:"14px 16px",marginBottom:8}}>
+                  <div style={{fontSize:13,fontWeight:700,color:navy,marginBottom:5}}>🏄 Surf-Aufenthalt</div>
+                  <div style={{fontSize:13,color:"#5a5a5a"}}>11 Nächte Surfcamp – Tagesplan wird vor Ort organisiert</div>
+                </div>
+              </>
+            ) : s.returnFlight ? (
+              <>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",margin:"14px 0 8px 2px"}}>Tagesplan</div>
+                {s.dayPlans.map((dp, i) => (
+                  <div key={i} style={{background:"white",borderRadius:10,padding:"14px 16px",marginBottom:8}}>
+                    <div style={{fontSize:13,fontWeight:700,color:navy,marginBottom:10}}>{dp.date}</div>
+                    {dp.items.map((item, j) => (
+                      <div key={j} style={{display:"flex",gap:10,marginBottom:8,alignItems:"flex-start"}}>
+                        <span style={{fontSize:10,color:"white",background:navy,borderRadius:4,padding:"2px 6px",whiteSpace:"nowrap",marginTop:1,flexShrink:0}}>{item.time}</span>
+                        <span style={{fontSize:13,color:"#3a3a3a",lineHeight:1.4}}>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",margin:"14px 0 8px 2px"}}>Rückflug · 6. August</div>
+                <div style={{background:"white",borderRadius:10,padding:"14px 16px",marginBottom:8}}>
+                  <div style={{fontSize:13,fontWeight:700,color:navy,marginBottom:10}}>✈️ Direktflug nach Frankfurt</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div><div style={{fontSize:18,fontWeight:700,color:navy}}>09:40</div><div style={{fontSize:11,color:"#9a9a9a"}}>HND · T2</div></div>
+                    <div style={{fontSize:11,color:"#aaa",textAlign:"center"}}>NH223<br/>14h 45min</div>
+                    <div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:700,color:navy}}>17:25</div><div style={{fontSize:11,color:"#9a9a9a"}}>FRA · T1</div></div>
+                  </div>
+                </div>
+              </>
+            ) : s.dayPlans.length > 0 ? (
+              <>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",margin:"14px 0 8px 2px"}}>Tagesplan</div>
+                {s.dayPlans.map((dp, i) => (
+                  <div key={i} style={{background:"white",borderRadius:10,padding:"14px 16px",marginBottom:8}}>
+                    <div style={{fontSize:13,fontWeight:700,color:navy,marginBottom:10}}>{dp.date}</div>
+                    {dp.items.map((item, j) => (
+                      <div key={j} style={{display:"flex",gap:10,marginBottom:8,alignItems:"flex-start"}}>
+                        <span style={{fontSize:10,color:"white",background:navy,borderRadius:4,padding:"2px 6px",whiteSpace:"nowrap",marginTop:1,flexShrink:0}}>{item.time}</span>
+                        <span style={{fontSize:13,color:"#3a3a3a",lineHeight:1.4}}>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </>
+            ) : null}
+
+            {/* Hotel */}
+            {s.hotel && (
+              <>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",margin:"14px 0 8px 2px"}}>Unterkunft</div>
+                <div style={{background:"white",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div style={{flex:1,marginRight:10}}>
+                      <div style={{fontSize:14,fontWeight:700}}>{s.hotel.name}</div>
+                      {s.hotel.stars && <div style={{fontSize:11,color:"#e0a830",marginTop:2}}>{s.hotel.stars}</div>}
+                      <div style={{fontSize:12,color:"#7a7a7a",marginTop:2}}>{s.hotel.address}</div>
+                    </div>
+                    <a href={s.hotel.maps} target="_blank" rel="noopener noreferrer"
+                      style={{display:"flex",alignItems:"center",gap:4,padding:"7px 12px",borderRadius:8,background:"#f0ede6",color:navy,fontSize:12,fontWeight:600,textDecoration:"none",flexShrink:0}}>
+                      📍 Maps
+                    </a>
+                  </div>
+                  <div style={{display:"flex",gap:20,marginTop:12}}>
+                    {[["Check-in",s.hotel.checkin],["Check-out",s.hotel.checkout]].map(([label,val]) => (
+                      <div key={label}>
+                        <div style={{fontSize:10,color:"#aaa",textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
+                        <div style={{fontSize:12,fontWeight:600,color:navy,marginTop:2}}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Tokyo III hotel placeholder */}
+            {s.returnFlight && (
+              <>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",margin:"14px 0 8px 2px"}}>Unterkunft</div>
+                <div style={{background:"#fff8e6",border:"1.5px solid #f0c040",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"#7a5f00"}}>⚠️ Noch zu buchen</div>
+                  <div style={{fontSize:13,color:"#7a5f00",marginTop:3}}>Komfort-Hotel direkt am Flughafen – z.B. THE GATE HOTEL Haneda by HULIC</div>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+
+
+      {activeTab === "prep" && (
+        <div style={{padding:14}}>
+          <div style={{background:"white",borderRadius:12,padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:14}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>Vorbereitung</div>
+              <div style={{height:6,background:"#e5e2db",borderRadius:3}}>
+                <div style={{height:6,borderRadius:3,background:green,width:`${Math.round((prepDone/prepTotal)*100)}%`,transition:"width 0.4s"}}/>
+              </div>
+            </div>
+            <div style={{fontSize:22,fontWeight:700,color:navy}}>{prepDone}/{prepTotal}</div>
+          </div>
+          {prepGroups.map(g => (
+            <div key={g} style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",marginBottom:8,marginLeft:2}}>{g}</div>
+              {PREP.filter(p => p.group===g).map(p => (
+                <div key={p.id} onClick={() => togglePrep(p.id)} style={{
+                  background:"white",borderRadius:10,padding:"12px 14px",marginBottom:7,
+                  display:"flex",gap:12,alignItems:"flex-start",cursor:"pointer",
+                  opacity: prepChecked[p.id] ? 0.45 : 1
+                }}>
+                  <div style={{
+                    width:20,height:20,borderRadius:5,flexShrink:0,marginTop:1,
+                    background: prepChecked[p.id] ? green : "transparent",
+                    border: `2px solid ${prepChecked[p.id] ? green : "#c5c0b5"}`,
+                    display:"flex",alignItems:"center",justifyContent:"center"
+                  }}>
+                    {prepChecked[p.id] && <span style={{color:"white",fontSize:12,fontWeight:700}}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{fontSize:13,lineHeight:1.4,textDecoration:prepChecked[p.id]?"line-through":"none"}}>{p.text}</div>
+                    {p.note && <div style={{fontSize:11,color:"#9a9a9a",marginTop:3}}>💡 {p.note}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "connections" && (
+        <div style={{padding:14}}>
+          {/* JR Pass Empfehlung */}
+          <div style={{background:navy,color:"white",borderRadius:12,padding:"14px 16px",marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#8899bb",marginBottom:6}}>JR Pass Analyse 2026</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:700}}>14-Tage JR Pass</div>
+                <div style={{fontSize:12,color:"#ff9999",marginTop:2}}>❌ Nicht empfehlenswert</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:18,fontWeight:700,color:"#ff9999"}}>−31.650 ¥</div>
+                <div style={{fontSize:11,color:"#8899bb"}}>Verlust vs. Einzeltickets</div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,marginBottom:10}}>
+              {[["Pass Kosten","80.000 ¥"],["Strecken-Wert","48.350 ¥"]].map(([l,v]) => (
+                <div key={l} style={{flex:1,background:"rgba(255,255,255,0.1)",borderRadius:8,padding:"8px 10px"}}>
+                  <div style={{fontSize:10,color:"#8899bb"}}>{l}</div>
+                  <div style={{fontSize:14,fontWeight:700,marginTop:2}}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:12,color:"#aabbcc",lineHeight:1.5}}>💡 Empfehlung: Einzeltickets kaufen – spart ~31.650 ¥ (~190 EUR)</div>
+          </div>
+
+          {/* Connection blocks */}
+          {CONNECTIONS.map(c => (
+            <div key={c.id} style={{background:"white",borderRadius:12,padding:"14px 16px",marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a"}}>{c.from} → {c.to}</div>
+                  <div style={{fontSize:11,color:"#9a9a9a",marginTop:2}}>{c.date}</div>
+                </div>
+                <span style={{
+                  fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,flexShrink:0,marginLeft:8,
+                  background: c.jr===true ? "#e5f2ea" : c.jr==="partial" ? "#fff3cd" : "#fee5e5",
+                  color: c.jr===true ? green : c.jr==="partial" ? "#7a5f00" : "#8b0000"
+                }}>
+                  {c.jr===true ? "JR Pass ✓" : c.jr==="partial" ? "JR teilw." : "Kein JR Pass"}
+                </span>
+              </div>
+              <div style={{background:"#f5f3ee",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:600,color:navy}}>{c.option}</div>
+                <div style={{display:"flex",gap:16,marginTop:6}}>
+                  <span style={{fontSize:12,color:"#5a5a5a"}}>🕐 {c.duration}</span>
+                  <span style={{fontSize:12,color:"#5a5a5a",fontWeight:600}}>💴 {c.price}</span>
+                </div>
+              </div>
+              {c.note && <div style={{fontSize:12,color:"#7a7a7a",lineHeight:1.5}}>{c.note}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "transport" && (
+        <div style={{padding:14}}>
+          <div style={{background:"white",borderRadius:12,padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:14}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>Fortschritt</div>
+              <div style={{height:6,background:"#e5e2db",borderRadius:3}}>
+                <div style={{height:6,borderRadius:3,background:green,width:`${pct}%`,transition:"width 0.4s"}}/>
+              </div>
+            </div>
+            <div style={{fontSize:22,fontWeight:700,color:navy}}>{done}/{total}</div>
+          </div>
+          {groups.map(g => (
+            <div key={g} style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#aaa",marginBottom:8,marginLeft:2}}>{g}</div>
+              {TODOS.filter(t => t.group===g).map(t => (
+                <div key={t.id} onClick={() => toggleTodo(t.id)} style={{
+                  background:"white",borderRadius:10,padding:"12px 14px",marginBottom:7,
+                  display:"flex",gap:12,alignItems:"flex-start",cursor:"pointer",
+                  opacity: checked[t.id] ? 0.45 : 1
+                }}>
+                  <div style={{
+                    width:20,height:20,borderRadius:5,flexShrink:0,marginTop:1,
+                    background: checked[t.id] ? green : "transparent",
+                    border: `2px solid ${checked[t.id] ? green : "#c5c0b5"}`,
+                    display:"flex",alignItems:"center",justifyContent:"center"
+                  }}>
+                    {checked[t.id] && <span style={{color:"white",fontSize:12,fontWeight:700}}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{fontSize:13,lineHeight:1.4,textDecoration:checked[t.id]?"line-through":"none"}}>{t.text}</div>
+                    {t.note && <div style={{fontSize:11,color:"#9a9a9a",marginTop:3}}>💡 {t.note}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<JapanPlanner />);
+    document.getElementById("loading").style.display = "none";
+  </script>
+</body>
+</html>
