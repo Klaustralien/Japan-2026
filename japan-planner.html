@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Japan 2026">
+<meta name="theme-color" content="#F4F1E9">
+<title>Japan Rundreise 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --mono:'IBM Plex Mono',monospace;
+  --serif:'Instrument Serif',serif;
+  --bg:#F4F1E9;--ink:#1C2647;--muted:#7A809A;--line:#E3DECF;
+  --card:#FFFFFF;--accent:#C5372A;--accent-soft:#F3DAD4;
+  --node:#26365E;--mapbg:#DCE7EF;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg)}
+body{font-family:'Manrope',system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.app{max-width:430px;margin:0 auto;min-height:100%;position:relative;overflow-x:hidden}
+
+/* MAP */
+.map{position:relative;height:340px;overflow:hidden;background:var(--mapbg);flex-shrink:0}
+.mapimg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:0}
+.routesvg{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+.rline{fill:none;stroke:var(--node);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:0.5 9;opacity:.85}
+.rfly{fill:none;stroke:var(--node);stroke-width:2;stroke-dasharray:2 7;stroke-linecap:round;opacity:.3}
+.pindot{fill:#fff;stroke:var(--node);stroke-width:2.5;transition:all .25s}
+.pindot.active{fill:var(--accent);stroke:var(--accent)}
+.pinnum{fill:var(--node);font-family:'Manrope',sans-serif;font-weight:800;font-size:11px;text-anchor:middle;dominant-baseline:central;transition:fill .25s}
+.pinnum.active{fill:#fff}
+.pinhalo{fill:var(--accent);opacity:0;transition:opacity .25s}
+.pinhalo.active{opacity:.2}
+.pinhit{fill:transparent;cursor:pointer}
+.maplegend{position:absolute;left:14px;bottom:14px;display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;background:rgba(255,255,255,.75);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:var(--mono);font-size:10px;letter-spacing:.02em;color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.legdot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* SHEET */
+.sheet{position:relative;z-index:2;background:var(--bg);border-radius:24px 24px 0 0;margin-top:-22px;padding:22px 20px 120px;box-shadow:0 -10px 26px rgba(0,0,0,.05)}
+.kicker{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--accent)}
+.triptitle{margin-top:7px;font-family:var(--serif);font-size:36px;line-height:1;color:var(--ink)}
+.tripmeta{margin-top:7px;color:var(--muted);font-size:13.5px}
+.stats{display:flex;align-items:stretch;margin-top:17px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{flex:1;padding:13px 4px;text-align:center}
+.statnum{font-weight:800;font-size:21px;letter-spacing:-.01em;color:var(--ink)}
+.statlab{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.vline{width:1px;background:var(--line);margin:11px 0}
+
+/* TIMELINE */
+.timeline{margin-top:18px;padding-bottom:8px}
+.leg{position:relative;padding-left:44px;padding-top:7px;padding-bottom:7px}
+.legline{position:absolute;left:14px;top:0;bottom:0;width:2px;background:repeating-linear-gradient(to bottom,var(--line) 0 5px,transparent 5px 10px)}
+.legpill{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.01em;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 13px;white-space:nowrap;cursor:pointer;width:100%}
+.legarr{color:var(--accent);font-weight:700}
+.legchev{margin-left:auto;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);transition:transform .2s;opacity:.5;flex-shrink:0}
+.legchev.open{transform:rotate(225deg)}
+.viadet{margin-top:9px;background:var(--card);border-radius:14px;padding:13px 15px;box-shadow:0 1px 2px rgba(27,37,64,.05),0 10px 22px rgba(27,37,64,.05)}
+.detline{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:4px 0}
+.detk{flex-shrink:0;color:var(--muted);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.detv{text-align:right;font-size:13px;color:var(--ink)}
+.dnote{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.4}
+.dlink{display:inline-flex;align-items:center;gap:6px;margin-top:11px;font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--accent);text-decoration:none}
+
+.stop{position:relative;padding-left:44px;padding-bottom:4px}
+.stopline{position:absolute;left:14px;top:0;bottom:0;width:2px;background:repeating-linear-gradient(to bottom,var(--line) 0 5px,transparent 5px 10px)}
+.node{position:absolute;left:1px;top:1px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;z-index:1;background:var(--node);color:#fff;cursor:pointer;transition:background .25s;flex-shrink:0}
+.node.active{background:var(--accent)}
+.card{background:var(--card);border-radius:16px;padding:14px 15px;box-shadow:0 1px 2px rgba(27,37,64,.05),0 10px 22px rgba(27,37,64,.05);transition:box-shadow .25s}
+.card.active{box-shadow:0 0 0 1.5px var(--accent),0 1px 2px rgba(27,37,64,.05),0 10px 22px rgba(27,37,64,.05)}
+.cardtop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.cityline{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
+.city{font-family:var(--serif);font-size:25px;line-height:1.05;color:var(--ink)}
+.kanji{color:var(--muted);font-size:15px;font-weight:600}
+.nights-pill{flex-shrink:0;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:11px;padding:5px 11px;border-radius:999px;white-space:nowrap}
+.subline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:4px}
+.dates{color:var(--muted);font-size:12px;font-family:var(--mono)}
+.wx{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.wxdot{width:7px;height:7px;border-radius:50%;background:#E0A23B;flex-shrink:0}
+.companion{display:inline-block;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;margin-top:5px}
+.companion.solo{background:#e8ecf5;color:var(--node)}
+.companion.duo{background:#e5f2ea;color:#1a6044}
+.divider{height:1px;background:var(--line);margin:11px 0 4px}
+.erow{display:flex;align-items:flex-start;gap:11px;width:100%;background:none;border:none;padding:9px 0 0;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.metalab{flex-shrink:0;width:64px;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:3px}
+.metaval{font-size:13px;line-height:1.38;color:var(--ink);flex:1;min-width:0}
+.clip{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.chev{flex-shrink:0;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);transition:transform .2s;margin-top:5px;opacity:.5;color:var(--muted)}
+.chev.open{transform:rotate(225deg)}
+.exp{margin-top:9px;padding:12px 14px;background:var(--bg);border-radius:12px}
+.hlitem{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.hlitem:last-child{border-bottom:none}
+.hltext{display:flex;flex-direction:column;min-width:0}
+.hlname{font-weight:600;font-size:13px;color:var(--ink)}
+.hlnote{font-size:11.5px;color:var(--muted);margin-top:1px}
+.hllink{flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--accent);text-decoration:none;white-space:nowrap}
+.notebody{font-size:13px;line-height:1.5;color:var(--ink)}
+.noteedit{display:inline-block;margin-top:9px;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted)}
+
+/* FINISH */
+.finish{position:relative;padding-left:44px;margin-top:8px;display:flex;align-items:center;min-height:38px}
+.finishline{position:absolute;left:14px;top:-16px;height:24px;width:2px;background:repeating-linear-gradient(to bottom,var(--line) 0 5px,transparent 5px 10px)}
+.finishnode{position:absolute;left:3px;top:6px;width:24px;height:24px;border-radius:6px;transform:rotate(45deg);background:var(--accent)}
+.finishtxt{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
+
+/* BOTTOM NAV */
+.bottomnav{position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;background:rgba(244,241,233,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);display:flex;padding:6px 0 calc(6px + env(safe-area-inset-bottom,12px));z-index:200}
+.navbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);transition:color .15s}
+.navbtn.active{color:var(--accent)}
+.navicon{font-size:18px;line-height:1}
+
+/* OVERLAYS */
+.overlay{position:fixed;inset:0;max-width:430px;margin:0 auto;z-index:300;pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end}
+.overlay.open{pointer-events:all}
+.overlay-backdrop{position:absolute;inset:0;background:rgba(28,38,71,.4);opacity:0;transition:opacity .3s;cursor:pointer}
+.overlay.open .overlay-backdrop{opacity:1}
+.overlay-sheet{background:var(--bg);border-radius:24px 24px 0 0;padding:0 0 calc(20px + env(safe-area-inset-bottom,12px));max-height:88vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .35s cubic-bezier(.32,1,.28,1);box-shadow:0 -10px 40px rgba(0,0,0,.15)}
+.overlay.open .overlay-sheet{transform:translateY(0)}
+.overlay-handle{width:36px;height:4px;border-radius:2px;background:var(--line);margin:12px auto 0}
+.overlay-header{padding:14px 20px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.overlay-title{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.overlay-close{background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted);padding:4px 8px}
+.overlay-body{overflow-y:auto;padding:16px 20px;-webkit-overflow-scrolling:touch}
+
+/* OVERLAY CONTENT */
+.jr-box{background:var(--node);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.jr-eye{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8899bb;margin-bottom:6px}
+.jr-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.jr-ttl{font-size:15px;font-weight:700}
+.jr-sub{font-size:12px;color:#ff9999;margin-top:2px}
+.jr-amt{font-size:18px;font-weight:700;color:#ff9999}
+.jr-amtsub{font-size:11px;color:#8899bb}
+.jr-grid{display:flex;gap:10px;margin-bottom:10px}
+.jr-cell{flex:1;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 10px}
+.jr-clabel{font-size:10px;color:#8899bb}
+.jr-cval{font-size:14px;font-weight:700;margin-top:2px}
+.jr-tip{font-size:12px;color:#aabbcc;line-height:1.5}
+.conn-card{background:var(--card);border-radius:14px;padding:13px 15px;margin-bottom:10px;box-shadow:0 1px 2px rgba(27,37,64,.04),0 4px 14px rgba(27,37,64,.06)}
+.conn-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.conn-route{font-size:13px;font-weight:700;color:var(--ink)}
+.conn-date{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+.jr-badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;flex-shrink:0;margin-left:8px;font-family:var(--mono)}
+.jr-yes{background:#e5f2ea;color:#1a6044}
+.jr-no{background:#fee5e5;color:#8b0000}
+.jr-partial{background:#fff3cd;color:#7a5f00}
+.conn-opt{background:var(--bg);border-radius:8px;padding:9px 11px;margin-bottom:7px}
+.conn-name{font-size:13px;font-weight:600;color:var(--node)}
+.conn-meta{display:flex;gap:14px;margin-top:5px;font-size:11.5px;color:var(--muted)}
+.conn-note{font-size:11.5px;color:var(--muted);line-height:1.5}
+.progress-card{background:var(--card);border-radius:14px;padding:13px 15px;margin-bottom:14px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 2px rgba(27,37,64,.04)}
+.progress-wrap{flex:1}
+.progress-label{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px}
+.progress-bar{height:5px;background:var(--line);border-radius:3px}
+.progress-fill{height:5px;border-radius:3px;background:#1a6044;transition:width .4s}
+.progress-count{font-size:22px;font-weight:800;color:var(--node)}
+.grp-label{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px 2px}
+.todo-item{background:var(--card);border-radius:12px;padding:11px 13px;margin-bottom:7px;display:flex;gap:11px;align-items:flex-start;cursor:pointer;transition:opacity .15s;box-shadow:0 1px 2px rgba(27,37,64,.04)}
+.todo-item.done{opacity:.4}
+.todo-check{width:20px;height:20px;border-radius:5px;flex-shrink:0;margin-top:1px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.todo-check.checked{background:#1a6044;border-color:#1a6044}
+.ckmark{color:#fff;font-size:12px;font-weight:700;line-height:1}
+.todo-text{font-size:13px;line-height:1.4;color:var(--ink)}
+.todo-item.done .todo-text{text-decoration:line-through}
+.todo-note{font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--mono);line-height:1.4}
+.grp-block{margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- MAP -->
+  <div class="map">
+    <img class="mapimg" src="https://commons.wikimedia.org/wiki/Special:FilePath/Japan_relief_location_map.jpg?width=820" alt="Reliefkarte von Japan">
+    <svg class="routesvg" viewBox="0 0 402 340" preserveAspectRatio="none" id="routesvg">
+      <!-- Route polyline -->
+      <polyline class="rline" points="265,156 275,163 262,161 248,162 236,151 225,152 215,146 201,170 202,175 197,175 150,180"/>
+      <!-- Return flight arc -->
+      <path class="rfly" d="M150,180 Q200,95 265,156"/>
+      <!-- Pins injected by JS -->
+      <g id="pins"></g>
+    </svg>
+    <div class="maplegend"><span class="legdot"></span>Geplante Route &middot; 12 Stationen &middot; ca. 1.900 km</div>
+  </div>
+
+  <!-- SHEET -->
+  <div class="sheet">
+    <div class="kicker">Reiseplan 2026</div>
+    <div class="triptitle">Japan Rundreise</div>
+    <div class="tripmeta">Klaus &middot; 7. Juli &ndash; 6. August 2026</div>
+    <div class="stats">
+      <div class="stat"><div class="statnum">30</div><div class="statlab">N&auml;chte</div></div>
+      <div class="vline"></div>
+      <div class="stat"><div class="statnum">12</div><div class="statlab">Stationen</div></div>
+      <div class="vline"></div>
+      <div class="stat"><div class="statnum" id="daystogo">–</div><div class="statlab">Tage bis Start</div></div>
+    </div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottomnav">
+    <button class="navbtn active" id="nav-plan" onclick="showNav('plan')"><span class="navicon">🗺</span>Reiseplan</button>
+    <button class="navbtn" id="nav-conn" onclick="showNav('conn')"><span class="navicon">🚆</span>Verbindungen</button>
+    <button class="navbtn" id="nav-book" onclick="showNav('book')"><span class="navicon">✅</span>Buchungen</button>
+    <button class="navbtn" id="nav-prep" onclick="showNav('prep')"><span class="navicon">📋</span>Vorbereitung</button>
+  </div>
+
+  <!-- OVERLAY: VERBINDUNGEN -->
+  <div class="overlay" id="ov-conn">
+    <div class="overlay-backdrop" onclick="closeOverlay('conn')"></div>
+    <div class="overlay-sheet">
+      <div class="overlay-handle"></div>
+      <div class="overlay-header">
+        <div class="overlay-title">Verbindungen</div>
+        <button class="overlay-close" onclick="closeOverlay('conn')">Schliessen</button>
+      </div>
+      <div class="overlay-body" id="conn-body"></div>
+    </div>
+  </div>
+
+  <!-- OVERLAY: BUCHUNGEN -->
+  <div class="overlay" id="ov-book">
+    <div class="overlay-backdrop" onclick="closeOverlay('book')"></div>
+    <div class="overlay-sheet">
+      <div class="overlay-handle"></div>
+      <div class="overlay-header">
+        <div class="overlay-title">Buchungen &amp; Transport</div>
+        <button class="overlay-close" onclick="closeOverlay('book')">Schliessen</button>
+      </div>
+      <div class="overlay-body" id="book-body"></div>
+    </div>
+  </div>
+
+  <!-- OVERLAY: VORBEREITUNG -->
+  <div class="overlay" id="ov-prep">
+    <div class="overlay-backdrop" onclick="closeOverlay('prep')"></div>
+    <div class="overlay-sheet">
+      <div class="overlay-handle"></div>
+      <div class="overlay-header">
+        <div class="overlay-title">Vorbereitung</div>
+        <button class="overlay-close" onclick="closeOverlay('prep')">Schliessen</button>
+      </div>
+      <div class="overlay-body" id="prep-body"></div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ─── SUPABASE ────────────────────────────────────────────────────────────────
+const sb = supabase.createClient(
+  'https://ytivcojuhpckbwbhxrfr.supabase.co',
+  'sb_publishable_7W0SQWy-0MYAd2ED-chyUQ_OODZrbfo'
+);
+async function sbGet(k){try{const{data}=await sb.from('planner_state').select('value').eq('key',k).maybeSingle();return data?data.value:null;}catch(e){return localStorage.getItem(k);}}
+async function sbSet(k,v){try{await sb.from('planner_state').upsert({key:k,value:v,updated_at:new Date().toISOString()});}catch(e){}localStorage.setItem(k,v);}
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let activePin=1, openSections={}, checked={}, prepChecked={};
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const STOPS=[
+  {num:1,city:'Tokyo',kanji:'東京',nights:'2 N\u00e4chte',dates:'7.\u20139. Juli',solo:true,
+   weather:'\u226430\u00b0 \u00b7 schw\u00fcl, Regenzeit',
+   pin:{cx:265,cy:156},
+   hotel:{name:'APA Hotel Roppongi SIX',addr:'Roppongi, Minato-ku',checkin:'Check-in ab 15:00 \u00b7 bis 0:00 Uhr',maps:'https://maps.google.com/?q=35.6662355,139.7373987'},
+   via:null,
+   hl:[
+     {name:'Roppongi Hills',note:'Modernes Tokyo, perfekter Einstieg'},
+     {name:'Tsukiji Outer Market',note:'Bestes Sushi der Stadt zum Mittagessen'},
+     {name:'Shibuya Crossing',note:'Bei Nacht besuchen \u2013 beeindruckendes Chaos'}
+   ],
+   note:'Ankunft HND Terminal 2 um 16:50 Uhr. NH224 Direktflug ab Frankfurt. Jetlag auskurieren, entspannt starten.'
+  },
+  {num:2,city:'Ichinomiya',kanji:'\u4e00\u5bae',nights:'11 N\u00e4chte',dates:'9.\u201320. Juli',solo:true,
+   weather:'\u226428\u00b0 \u00b7 Pazifikk\u00fcste, Wellengang',
+   pin:{cx:276,cy:163},
+   hotel:{name:'Airbnb bei Mikako',addr:'73-10 Misakich\u014bnakahara, Isumi-shi',checkin:'Check-in 15:00 \u00b7 Check-out 11:00',maps:'https://maps.google.com/?q=35.3009884,140.4069229'},
+   via:{label:'JR Sobu \u2192 Sotobo-Linie',time:'ca. 90 Min',dep:'Tokyo Bhf.',arr:'Bhf. Ohara',note:'Stündlich, kein Vorausbuchen nötig'},
+   hl:[
+     {name:'Surf-Spots Pazifik',note:'Bekannte Surfregion, direkt am Meer'},
+     {name:'Strand von Ichinomiya',note:'Schwarzer Sandstrand, ruhige Atmosphäre'},
+     {name:'Lokale Surferszene',note:'11 Tage eintauchen und entspannen'}
+   ],
+   note:'11 N\u00e4chte Surf-Aufenthalt. Der Tagesplan wird vor Ort organisiert \u2013 einfach dem Wellengang folgen.'
+  },
+  {num:3,city:'Tokyo',kanji:'\u6771\u4eac',nights:'4 N\u00e4chte',dates:'20.\u201324. Juli',solo:false,
+   weather:'\u226431\u00b0 \u00b7 hei\u00df & schw\u00fcl',
+   pin:{cx:261,cy:160},
+   hotel:{name:'Hotel Niwa Tokyo',addr:'Kandamisaki-cho 1-1-16, Chiyoda-ku',checkin:'Check-in ab 15:00 \u00b7 Check-out bis 11:00',maps:'https://maps.google.com/?q=35.7006393,139.7566894'},
+   via:{label:'JR Sotobo \u2192 Sobu-Linie',time:'ca. 90 Min',dep:'Bhf. Ohara',arr:'Tokyo Bhf.',note:'R\u00fcckweg gleiche Strecke'},
+   hl:[
+     {name:'Senso-ji Tempel (Asakusa)',note:'Fr\u00fch morgens, vor den Massen'},
+     {name:'Shibuya Sky',note:'Beste Aussicht der Stadt von der Dachterrasse'},
+     {name:'Akihabara',note:'Faszinierendes Erlebnis, auch f\u00fcr Nicht-Gamer'}
+   ],
+   note:'Freund st\u00f6\u00dft dazu. Tag 1: Shinjuku & Golden Gai. Tag 2: Asakusa & Sumida River. Tag 3: Meiji-Schrein, Harajuku, Shibuya. Tag 4: Akihabara, Abschiedsessen.'
+  },
+  {num:4,city:'Fujikawaguchiko',kanji:'\u6e56',nights:'2 N\u00e4chte',dates:'24.\u201326. Juli',solo:false,
+   weather:'\u226427\u00b0 \u00b7 Bergluft, Fuji-Gebiet',
+   pin:{cx:248,cy:162},
+   hotel:{name:'HOTORI no HOTEL BAN',addr:'Kawaguchi 3086, Fujikawaguchiko',checkin:'Check-in 15:00\u201320:00 \u00b7 Check-out 7:00\u201310:00',maps:'https://maps.google.com/?q=35.5221212,138.7702438'},
+   via:{label:'Kaiji Limited Express + Fujikyuko',time:'ca. 2h',dep:'Shinjuku',arr:'Kawaguchiko',note:'Kaiji ab Shinjuku nach Otsuki, dann Fujikyuko Line (1.140 Yen separat)'},
+   hl:[
+     {name:'Chureito-Pagode',note:'Klassischste Fuji-Aussicht, morgens besuchen'},
+     {name:'Kawaguchi-See',note:'Bei guter Sicht spiegelt sich der Fuji'},
+     {name:'Fahrradtour / Kanufahren',note:'Je nach Lust und Wetter'}
+   ],
+   note:'Ankunft nachmittags. Abends am See den Fuji bei Sonnenuntergang genie\u00dfen (bei guter Sicht). Tag 2: Pagode fr\u00fch, dann See-Tour nachmittags.'
+  },
+  {num:5,city:'Matsumoto',kanji:'\u677e\u672c',nights:'1 Nacht',dates:'26.\u201327. Juli',solo:false,
+   weather:'\u226428\u00b0 \u00b7 Alpenstadt, angenehm',
+   pin:{cx:236,cy:151},
+   hotel:{name:'Hotel Buena Vista',addr:'1-2-1 Honjo, Matsumoto',checkin:'26. Juli \u00b7 27. Juli',maps:'https://maps.google.com/?q=36.2277735,137.967994'},
+   via:{label:'Fujikyuko + JR Chuo-Linie',time:'ca. 3\u20134h',dep:'Kawaguchiko',arr:'Matsumoto',note:'Umstieg in Otsuki. Alt: Direktbus Kawaguchiko \u2192 Matsumoto (~2h, ~2.200 Yen)'},
+   hl:[
+     {name:'Matsumoto-Burg',note:'Eine der sch\u00f6nsten Originalburgen Japans'},
+     {name:'Nakamachi-Stra\u00dfe',note:'Alte Kaufmannh\u00e4user, Caf\u00e9s und Kunstl\u00e4den'},
+     {name:'Soba-Restaurant',note:'Matsumoto ist ber\u00fchmt f\u00fcr lokalen Buchweizen-Soba'}
+   ],
+   note:'Kompakter Stopp mit viel Charakter. Ankunft vormittags. Burg, Altstadt und Abendessen mit Soba.'
+  },
+  {num:6,city:'Takayama',kanji:'\u9ad8\u5c71',nights:'1 Nacht',dates:'27.\u201328. Juli',solo:false,
+   weather:'\u226426\u00b0 \u00b7 Bergstadt, mild',
+   pin:{cx:225,cy:152},
+   hotel:{name:'Hotel and Spa Gift Takayama',addr:'6-22 Tenmanmachi, Takayama',checkin:'27. Juli \u00b7 28. Juli',maps:'https://maps.google.com/?q=36.142123,137.2534112'},
+   via:{label:'Direktbus Matsumoto \u2192 Takayama',time:'ca. 2h 30min',dep:'Matsumoto Bus Terminal',arr:'Takayama Bus Center',note:'~3.800 Yen, kein JR Pass. Vorab buchen: nouhibus.co.jp'},
+   hl:[
+     {name:'Sanmachi Suji Altstadt',note:'Perfekt erhaltene Edo-H\u00e4user, Sake-Brauereien'},
+     {name:'Sake-Verkostung',note:'In einer der alten Brauereien'},
+     {name:'Higashiyama Tempelweg',note:'Ruhiger Spaziergang durch mehrere Tempel'}
+   ],
+   note:'Historische Bergstadt mit traditionellem Flair. Abends Hida-Rindleisch probieren \u2013 die lokale Spezialt\u00e4t.'
+  },
+  {num:7,city:'Kanazawa',kanji:'\u91d1\u6ca2',nights:'2 N\u00e4chte',dates:'28.\u201330. Juli',solo:false,
+   weather:'\u226430\u00b0 \u00b7 warm & feucht, K\u00fcste',
+   pin:{cx:215,cy:147},
+   hotel:{name:'Tokyu Stay Kanazawa',addr:'4-50 Minamicho, Kanazawa',checkin:'28. Juli \u00b7 30. Juli',maps:'https://maps.google.com/?q=36.567514,136.6539198'},
+   via:{label:'Nohi Bus \u00fcber Shirakawa-go',time:'ca. 2h 15min',dep:'Takayama Bus Center',arr:'Kanazawa',note:'4.200 Yen, kein JR Pass. Vorab buchen! Kurzstopp Shirakawa-go m\u00f6glich.'},
+   hl:[
+     {name:'Kenroku-en',note:'Einer der drei sch\u00f6nsten G\u00e4rten Japans'},
+     {name:'Tateyama-Kurobe Alpenroute',note:'Ganztagesausflug Murodo 2.450m \u2013 Fr\u00fchstart!'},
+     {name:'Nagamachi Samurai-Viertel',note:'Alte Lehmw\u00e4nde und Wassekan\u00e4le'}
+   ],
+   note:'Tag 1: Kenroku-en, Samurai-Viertel, Omicho-Markt. Tag 2: Tateyama Alpenroute Ganztag \u2013 Abfahrt ca. 7:00 Uhr. Tickets vorab buchen: alpen-route.com'
+  },
+  {num:8,city:'Kyoto',kanji:'\u4eac\u90fd',nights:'3 N\u00e4chte',dates:'30. Juli\u20132. Aug',solo:false,
+   weather:'\u226433\u00b0 \u00b7 hei\u00df & schw\u00fcl',
+   pin:{cx:201,cy:170},
+   hotel:{name:'Kyo Hotel Kishotei Gosho Minami',addr:'384-1 Kawaracho, Nakagyo-ku, Kyoto',checkin:'30. Juli \u00b7 Check-out 2. Aug',maps:'https://maps.google.com/?q=35.0128568,135.7610903'},
+   via:{label:'Shinkansen Hakutaka + Thunderbird',time:'ca. 2h',dep:'Kanazawa',arr:'Kyoto',note:'Umstieg in Tsuruga (seit M\u00e4rz 2024). ~7.020 Yen, Einzelticket.'},
+   hl:[
+     {name:'Fushimi Inari',note:'Die tausend Torii-Tore \u2013 vor 8 Uhr hingehen!'},
+     {name:'Arashiyama Bambushain',note:'Fr\u00fch morgens besuchen, danach Bootsfahrt'},
+     {name:'Gion Geisha-Viertel',note:'Respektvolles Erkunden, Fotografierverbot beachten'}
+   ],
+   note:'Tag 1: Ankunft, Gion. Tag 2: Arashiyama, Tenryu-ji, Rikscha. Tag 3: Fushimi Inari, Nishiki-Markt. Am 1. Aug morgens Koffer per Takkyubin nach Osaka senden!'
+  },
+  {num:9,city:'Nara',kanji:'\u5948\u826f',nights:'Tagesausflug',dates:'2. August',solo:false,
+   weather:'\u226433\u00b0 \u00b7 hei\u00df & schw\u00fcl',
+   pin:{cx:202,cy:175},
+   hotel:null,
+   via:{label:'Kintetsu-Linie ab Kyoto',time:'ca. 45 Min',dep:'Kyoto',arr:'Nara',note:'610 Yen, kein JR Pass nötig. Gepäck vorher per Takkyubin nach Osaka!'},
+   hl:[
+     {name:'T\u014ddai-ji',note:'Eine der gr\u00f6\u00dften historischen Holzhallen der Welt'},
+     {name:'Nara-Park',note:'Frei laufende Hirsche \u2013 Senbei-Cracker kaufen!'},
+     {name:'Kasuga-Taisha Schrein',note:'3.000 Steinlaternen, ruhige Atmosph\u00e4re'}
+   ],
+   note:'Tagesausflug auf dem Weg nach Osaka. Koffer wartet bereits im Osaka-Hotel. Nachmittags direkt per JR Yamatoji nach Osaka weiter.'
+  },
+  {num:10,city:'Osaka',kanji:'\u5927\u962a',nights:'1 Nacht',dates:'2.\u20133. August',solo:false,
+   weather:'\u226433\u00b0 \u00b7 hei\u00df & schw\u00fcl',
+   pin:{cx:197,cy:175},
+   hotel:{name:'Hotel Noum Osaka',addr:'4-1-18 Tenma, Kita-ku, Osaka',checkin:'Check-in 2. Aug \u00b7 Check-out 3. Aug',maps:'https://maps.google.com/?q=34.6922866,135.51462'},
+   via:{label:'JR Yamatoji-Linie',time:'ca. 35 Min',dep:'Nara',arr:'Osaka',note:'480 Yen, JR-Netz. Koffer wartet bereits im Hotel dank Takkyubin.'},
+   hl:[
+     {name:'Dotonbori',note:'Neon-Viertel & Street Food: Takoyaki, Okonomiyaki'},
+     {name:'Shinsaibashi',note:'Shopping und Bummeln \u2013 Osaka lebt nachts'},
+     {name:'Kuromon-Markt',note:'Fr\u00fchst\u00fcck oder Snacks am Morgen'}
+   ],
+   note:'Osaka ist eine Abendstadt. Dotonbori Streetfood, Shinsaibashi. Nur 1 Nacht \u2013 konzentriert genie\u00dfen.'
+  },
+  {num:11,city:'Hiroshima',kanji:'\u5e83\u5cf6',nights:'2 N\u00e4chte',dates:'3.\u20135. August',solo:false,
+   weather:'\u226431\u00b0 \u00b7 hei\u00df, K\u00fcstenfrische',
+   pin:{cx:150,cy:180},
+   hotel:{name:'Grand Prince Hotel Hiroshima',addr:'23-1 Motoujinamachi, Minami-ku',checkin:'Check-in 3. Aug \u00b7 Check-out 5. Aug',maps:'https://maps.google.com/?q=34.3427391,132.4640808'},
+   via:{label:'Shinkansen Sakura / Hikari',time:'ca. 1h',dep:'Osaka',arr:'Hiroshima',note:'9.440 Yen. Kein Nozomi \u2013 Sakura oder Hikari nehmen!'},
+   hl:[
+     {name:'Peace Memorial Park & Museum',note:'Bewegend und wichtig \u2013 Zeit einplanen'},
+     {name:'Miyajima & Torii-Tor',note:'F\u00e4hre mit JR-Pass. Gezeiten beachten!'},
+     {name:'Hiroshima-Okonomiyaki',note:'Lokale Version mit Nudeln \u2013 ein Muss'}
+   ],
+   note:'Tag 1: Peace Memorial Park & Museum, Stadt. Tag 2: Ganztag Miyajima, Mount Misen, Hirsche. Letzter gemeinsamer Abend.'
+  },
+  {num:12,city:'Tokyo',kanji:'\u6771\u4eac',nights:'R\u00fcckflug',dates:'5.\u20136. August',solo:true,
+   weather:'\u226431\u00b0 \u00b7 hei\u00df & schw\u00fcl',
+   pin:{cx:268,cy:155},
+   hotel:{name:'Haneda-Hotel (noch zu buchen)',addr:'z.B. THE GATE HOTEL Haneda by HULIC',checkin:'Direkt mit Terminal 2 verbunden',maps:'https://maps.google.com/?q=35.5494,139.7798'},
+   via:{label:'Shinkansen Hikari',time:'ca. 5h',dep:'Hiroshima ca. 13\u201314 Uhr',arr:'Tokyo',note:'19.440 Yen. Gr\u00f6\u00dfte Einzelstrecke \u2013 Ticket vorausbuchen!'},
+   hl:[
+     {name:'Ruhiger letzter Morgen',note:'Hiroshima, Peace Park nochmals kurz'},
+     {name:'Shinkansen nach Tokyo',note:'Nachmittagszug, Ankunft abends'},
+     {name:'R\u00fcckflug NH223',note:'6. Aug 09:40 HND T2 \u2192 Frankfurt 17:25'}
+   ],
+   note:'R\u00fcckflug: NH223 ab HND Terminal 2 um 09:40 Uhr. Direktflug nach Frankfurt, Ankunft 17:25 Uhr. Mind. 3h vorher am Terminal (06:40 Uhr). Hotel direkt am Flughafen.'
+  }
+];
+
+const TODOS=[
+  {id:'t1',group:'Vor der Reise',text:'Einzeltickets kaufen statt JR Pass \u2013 Pass kostet 80.000 Yen, Streckenwert nur 48.350 Yen',note:'Shinkansen online buchen: jr-central.co.jp'},
+  {id:'t2',group:'Vor der Reise',text:'Pocket WiFi oder SIM-Karte f\u00fcr Japan vorbestellen'},
+  {id:'t3',group:'Vor der Reise',text:'IC Card (Suica) \u2013 am Flughafen oder per Apple Pay einrichten'},
+  {id:'t15',group:'Vor der Reise',text:'Komfort-Hotel Haneda buchen (z.B. THE GATE HOTEL by HULIC \u00b7 Nacht 5./6. Aug)'},
+  {id:'t4',group:'Anreise \u00b7 6./7. Juli',text:'Hinflug: FRA Terminal 1, ab 20:45 \u00b7 NH224 (ANA Direktflug)'},
+  {id:'t4b',group:'Anreise \u00b7 6./7. Juli',text:'Transfer HND Terminal 2 \u2192 Hotel Tokyo (Ankunft 16:50, 7. Juli)'},
+  {id:'t5',group:'Anreise \u00b7 6./7. Juli',text:'Suica-Karte am HND Flughafen aufladen'},
+  {id:'t6',group:'Tokyo II \u2192 Fuji-See \u00b7 24. Juli',text:'Kaiji Limited Express + Fujikyuko Line nach Kawaguchiko buchen'},
+  {id:'t7',group:'Fuji-See \u2192 Matsumoto \u00b7 26. Juli',text:'Bus oder Zug Kawaguchiko \u2192 Matsumoto buchen (ca. 3h mit Umstieg Otsuki)'},
+  {id:'t8',group:'Matsumoto \u2192 Takayama \u00b7 27. Juli',text:'Direktbus Matsumoto \u2192 Takayama buchen (~3.800 Yen)',note:'nouhibus.co.jp oder alpico.co.jp'},
+  {id:'t9',group:'Takayama \u2192 Kanazawa \u00b7 28. Juli',text:'Nohi Bus \u00fcber Shirakawa-go nach Kanazawa (4.200 Yen)',note:'nouhibus.co.jp \u2013 unbedingt vorbuchen!'},
+  {id:'t9b',group:'Kanazawa \u00b7 29. Juli',text:'Tateyama-Kurobe Alpenroute Tickets vorbuchen',note:'alpen-route.com \u2013 im Juli sehr ausgebucht!'},
+  {id:'t10',group:'Kanazawa \u2192 Kyoto \u00b7 30. Juli',text:'Hokuriku-Shinkansen Hakutaka + Thunderbird ab Tsuruga nach Kyoto buchen'},
+  {id:'t11',group:'Nara-Ausflug \u00b7 2. Aug',text:'Yamato Takkyubin am 1. Aug morgens: Koffer Kyoto \u2192 Osaka-Hotel'},
+  {id:'t12',group:'Osaka \u2192 Hiroshima \u00b7 3. Aug',text:'Shinkansen Sakura oder Hikari Osaka \u2192 Hiroshima (kein Nozomi!)'},
+  {id:'t13',group:'R\u00fckreise \u00b7 5. Aug',text:'Shinkansen Hikari Hiroshima \u2192 Tokyo buchen (ca. 5h, 19.440 Yen)',note:'Gr\u00f6\u00dfte Einzelstrecke \u2013 fr\u00fchzeitig buchen'},
+  {id:'t14',group:'R\u00fcckreise \u00b7 6. Aug',text:'Hotel Haneda \u2192 HND Terminal 2 (Abflug NH223 09:40)',note:'Mind. 3h vorher am Terminal: Aufbruch 06:40 Uhr'}
+];
+
+const PREP=[
+  {id:'p1',group:'Dokumente & Einreise',text:'Reisepass pr\u00fcfen \u2013 muss f\u00fcr gesamten Aufenthalt g\u00fcltig sein (bis mind. 6. Aug 2026)',note:'ANA-Bef\u00f6rderungsbedingungen pr\u00fcfen'},
+  {id:'p2',group:'Dokumente & Einreise',text:'Kein Visum n\u00f6tig \u2013 Deutsche d\u00fcrfen bis 90 Tage visumfrei einreisen'},
+  {id:'p3',group:'Dokumente & Einreise',text:'Visit Japan Web Registrierung \u2013 freiwillig aber empfohlen',note:'vjw.digital.go.jp \u2013 beschleunigt Einreise'},
+  {id:'p4',group:'Dokumente & Einreise',text:'Kopien aller Dokumente (digital + physisch separat)'},
+  {id:'p5',group:'Dokumente & Einreise',text:'Deutsche Botschaft Tokyo: +81-3-5791-7700'},
+  {id:'p6',group:'Versicherungen',text:'Auslandskrankenversicherung abschlie\u00dfen',note:'Japan hat kein Abkommen mit Deutschland \u2013 Pflicht!'},
+  {id:'p7',group:'Versicherungen',text:'Reiser\u00fccktrittsversicherung pr\u00fcfen (nach Flugtausch)'},
+  {id:'p8',group:'Versicherungen',text:'Gep\u00e4ckversicherung pr\u00fcfen'},
+  {id:'p9',group:'Gesundheit',text:'Reisemedizinische Beratung \u2013 Impfstatus individuell pr\u00fcfen lassen'},
+  {id:'p10',group:'Gesundheit',text:'Reiseapotheke: Pflaster, Schmerzmittel, Sonnencreme LSF50+, Insektenschutz'},
+  {id:'p11',group:'Gesundheit',text:'Eigene Medikamente + englisches Rezept einpacken',note:'Viele Wirkstoffe in Japan verboten'},
+  {id:'p12',group:'Gesundheit',text:'Hitze: Juli/August 30\u201335\u00b0C, sehr schw\u00fcl \u2013 leichte Kleidung & Regenponcho'},
+  {id:'p13',group:'Finanzen',text:'Japanische Yen besorgen (50.000\u2013100.000 Yen Bargeld f\u00fcr den Start)'},
+  {id:'p14',group:'Finanzen',text:'Kreditkarte mit niedrigen Ausl\u00e4ndsgebühren pr\u00fcfen'},
+  {id:'p15',group:'Finanzen',text:'7-Eleven & Japan Post ATMs: akzeptieren europäische Karten zuverlässig'},
+  {id:'p16',group:'Apps & Kommunikation',text:'Google Translate: Japanisch offline herunterladen (Kamera f\u00fcr Speisekarten!)'},
+  {id:'p17',group:'Apps & Kommunikation',text:'Google Maps Japan offline speichern'},
+  {id:'p18',group:'Apps & Kommunikation',text:'Navitime installieren \u2013 beste App f\u00fcr Z\u00fcge in Japan'},
+  {id:'p19',group:'Apps & Kommunikation',text:'IC Card App (Suica) einrichten \u2013 falls Apple Pay verf\u00fcgbar'},
+  {id:'p20',group:'Technik & Gep\u00e4ck',text:'Reiseadapter: Japan Typ A (wie USA), 110V',note:'Europ\u00e4ische Netzteile funktionieren meist trotzdem'},
+  {id:'p21',group:'Technik & Gep\u00e4ck',text:'Powerbank (max. 100Wh f\u00fcrs Handgep\u00e4ck)'},
+  {id:'p22',group:'Technik & Gep\u00e4ck',text:'ANA Freigep\u00e4ck pr\u00fcfen \u2013 Economy: 23 kg'},
+  {id:'p23',group:'Kultur & Praktisches',text:'Onsen-Etikette: Tattoos können Zutritt verweigern \u2013 vorab anfragen!'},
+  {id:'p27',group:'Kultur & Praktisches',text:'Yamato Takkyubin: 1. Aug morgens Koffer Kyoto \u2192 Osaka aufgeben',note:'Lieferung am 2. Aug \u2013 f\u00fcr Nara-Ausflug'},
+  {id:'p24',group:'Kultur & Praktisches',text:'Trinkgeld in Japan un\u00fcblich \u2013 niemals Trinkgeld geben'},
+  {id:'p25',group:'Kultur & Praktisches',text:'M\u00fcll immer einpacken \u2013 kaum \u00f6ffentliche M\u00fclleimer in Japan'}
+];
+
+const CONNECTIONS=[
+  {id:'c1',from:'HND Flughafen',to:'Tokyo Hotel',date:'7. Juli',jr:false,option:'Keikyu Line \u2192 Toei Asakusa Line',dur:'~50 Min',price:'640 Yen',note:'Umsteigen in Sengakuji. Ankunft HND 16:50.'},
+  {id:'c2',from:'Tokyo',to:'Ichinomiya',date:'9. Juli',jr:true,option:'JR Sobu-Linie \u2192 JR Sotobo-Linie',dur:'~90 Min',price:'1.980 Yen',note:'St\u00fcndlich, kein Vorausbuchen n\u00f6tig.'},
+  {id:'c3',from:'Ichinomiya',to:'Tokyo',date:'20. Juli',jr:true,option:'JR Sotobo-Linie \u2192 JR Sobu-Linie',dur:'~90 Min',price:'1.980 Yen',note:'R\u00fcckweg gleiche Strecke.'},
+  {id:'c4',from:'Tokyo',to:'Fujikawaguchiko',date:'24. Juli',jr:'partial',option:'Limited Express Kaiji ab Shinjuku \u2192 Umstieg Otsuki \u2192 Fujikyuko Line',dur:'~2h',price:'4.270 + 1.140 Yen',note:'Kaiji ist KEIN Shinkansen \u2013 Limited Express auf der Chuo-Linie.'},
+  {id:'c5',from:'Fujikawaguchiko',to:'Matsumoto',date:'26. Juli',jr:true,option:'Fujikyuko + Umstieg Otsuki + JR Chuo-Linie',dur:'~3\u20134h',price:'~3.020 + 1.140 Yen',note:'Alt: Direktbus Kawaguchiko \u2192 Matsumoto (~2h, ~2.200 Yen)'},
+  {id:'c6',from:'Matsumoto',to:'Takayama',date:'27. Juli',jr:false,option:'Direktbus Matsumoto Bus Terminal \u2192 Takayama',dur:'~2h 30min',price:'~3.800 Yen',note:'Kein JR Pass. Reservierung: nouhibus.co.jp oder alpico.co.jp'},
+  {id:'c7',from:'Takayama',to:'Kanazawa',date:'28. Juli',jr:false,option:'Nohi Bus \u00fcber Shirakawa-go',dur:'~2h 15min',price:'4.200 Yen',note:'Reservierungspflichtig: nouhibus.co.jp. Kurzstopp Shirakawa-go m\u00f6glich.'},
+  {id:'c8',from:'Kanazawa',to:'Tateyama & zur\u00fcck',date:'29. Juli',jr:false,option:'Ainokaze Railway + Toyama Chitetsu + Alpenroute (Rundticket)',dur:'Ganztag',price:'~14.550 Yen',note:'Ainokaze 1.080 + Chitetsu 1.230 + Alpenroute 12.240. Fr\u00fchstart ~7:00 Uhr! alpen-route.com'},
+  {id:'c9',from:'Kanazawa',to:'Kyoto',date:'30. Juli',jr:false,option:'Shinkansen Hakutaka \u2192 Umstieg Tsuruga \u2192 Thunderbird nach Kyoto',dur:'~2h',price:'7.020 Yen',note:'Umstieg in Tsuruga seit M\u00e4rz 2024. Einzelticket kaufen.'},
+  {id:'c10',from:'Kyoto',to:'Nara \u2192 Osaka',date:'2. Aug',jr:true,option:'Kintetsu nach Nara + JR Yamatoji nach Osaka',dur:'~1h 20min',price:'610 + 480 Yen',note:'Koffer am Vorabend per Takkyubin nach Osaka senden!'},
+  {id:'c11',from:'Osaka',to:'Hiroshima',date:'3. Aug',jr:true,option:'Shinkansen Sakura oder Hikari (KEIN Nozomi!)',dur:'~1h',price:'9.440 Yen',note:'Nozomi nicht nehmen \u2013 teurer, kein Vorteil hier.'},
+  {id:'c12',from:'Hiroshima',to:'Tokyo',date:'5. Aug',jr:true,option:'Shinkansen Hikari (empfohlen)',dur:'~5h',price:'19.440 Yen',note:'Gr\u00f6\u00dfte Einzelstrecke der Reise. Abfahrt ca. 13\u201314 Uhr.'},
+  {id:'c13',from:'Tokyo Hotel',to:'HND Terminal 2',date:'6. Aug',jr:false,option:'Keikyu Line oder direkt vom Flughafenhotel',dur:'~10\u201340 Min',price:'650 Yen',note:'Abflug NH223 09:40 \u2013 mind. 3h vorher am Terminal (06:40 Uhr).'}
+];
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init(){
+  const c=await sbGet('jp2026-checked'); if(c) checked=JSON.parse(c);
+  const p=await sbGet('jp2026-prep'); if(p) prepChecked=JSON.parse(p);
+  // Days to go
+  const dep=new Date(2026,6,7);
+  const dtg=Math.max(0,Math.round((dep-new Date())/86400000));
+  document.getElementById('daystogo').textContent=dtg;
+  renderPins();
+  renderTimeline();
+  renderConnOverlay();
+  renderBookOverlay();
+  renderPrepOverlay();
+}
+
+// ─── PINS ─────────────────────────────────────────────────────────────────────
+function renderPins(){
+  const g=document.getElementById('pins');
+  g.innerHTML=STOPS.map(s=>{
+    const {cx,cy}=s.pin;
+    const ac=activePin===s.num?'active':'';
+    return `<g class="pingroup" onclick="activatePin(${s.num})">
+      <circle class="pinhalo ${ac}" cx="${cx}" cy="${cy}" r="20"/>
+      <circle class="pinhit" cx="${cx}" cy="${cy}" r="17"/>
+      <circle class="pindot ${ac}" cx="${cx}" cy="${cy}" r="11"/>
+      <text class="pinnum ${ac}" x="${cx}" y="${cy}">${s.num}</text>
+    </g>`;
+  }).join('');
+}
+
+function activatePin(n){
+  activePin=n;
+  renderPins();
+  // scroll to station
+  const el=document.getElementById('stop'+n);
+  if(el){
+    const r=el.getBoundingClientRect();
+    window.scrollBy({top:r.top-120,behavior:'smooth'});
+    updateActiveCards();
+  }
+}
+
+function updateActiveCards(){
+  document.querySelectorAll('.node').forEach(el=>{
+    el.classList.toggle('active',el.dataset.num===String(activePin));
+  });
+  document.querySelectorAll('.card').forEach(el=>{
+    el.classList.toggle('active',el.dataset.num===String(activePin));
+  });
+}
+
+// ─── TIMELINE ────────────────────────────────────────────────────────────────
+function mq(name,city){return'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(name+', '+city+', Japan');}
+function mqDir(city){return'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(city+', Japan')+'&travelmode=transit';}
+
+function toggle(key){
+  openSections[key]=!openSections[key];
+  renderTimeline();
+  updateActiveCards();
+}
+
+function setActive(n){
+  activePin=n;
+  renderPins();
+  updateActiveCards();
+}
+
+function renderTimeline(){
+  const tl=document.getElementById('timeline');
+  let html='';
+  STOPS.forEach((s,i)=>{
+    const isFirst=i===0;
+    const nightsLabel=s.nights==='Rückflug'?'R\u00fcckflug':s.nights;
+    const compCls=s.solo?'solo':'duo';
+    const compTxt=s.solo?'Alleine':'Mit Freund';
+    const nodeAc=activePin===s.num?'active':'';
+    const cardAc=activePin===s.num?'active':'';
+    const vKey='v'+s.num, hKey='h'+s.num, lKey='l'+s.num, nKey='n'+s.num;
+
+    // Via pill
+    let viaHTML='';
+    if(s.via && !isFirst){
+      const vOpen=openSections[vKey];
+      viaHTML=`<div class="leg"><div class="legline"></div>
+        <button class="legpill" onclick="toggle('${vKey}')">
+          <span class="legarr">\u2192</span>${s.via.label} &middot; ${s.via.time}
+          <span class="legchev ${vOpen?'open':''}"></span>
+        </button>
+        ${vOpen?`<div class="viadet">
+          <div class="detline"><span class="detk">Abfahrt</span><span class="detv">${s.via.dep}</span></div>
+          <div class="detline"><span class="detk">Ankunft</span><span class="detv">${s.via.arr}</span></div>
+          <div class="detline"><span class="detk">Dauer</span><span class="detv">${s.via.time}</span></div>
+          ${s.via.note?`<div class="dnote">${s.via.note}</div>`:''}
+          <a class="dlink" href="${mqDir(s.city)}" target="_blank" rel="noopener">Route in Google Maps \u2192</a>
+        </div>`:''}
+      </div>`;
+    }
+
+    // Hotel section
+    let hotelHTML='';
+    if(s.hotel){
+      const hOpen=openSections[hKey];
+      hotelHTML=`<button class="erow" onclick="toggle('${hKey}')">
+        <span class="metalab">Unterkunft</span>
+        <span class="metaval">${s.hotel.name}</span>
+        <span class="chev ${hOpen?'open':''}"></span>
+      </button>
+      ${hOpen?`<div class="exp">
+        <div class="detline"><span class="detk">Adresse</span><span class="detv">${s.hotel.addr}</span></div>
+        <div class="detline"><span class="detk">Check-in</span><span class="detv">${s.hotel.checkin}</span></div>
+        <a class="dlink" href="${s.hotel.maps}" target="_blank" rel="noopener">In Google Maps \u00f6ffnen \u2192</a>
+      </div>`:''}`;
+    } else if(s.num===9){
+      hotelHTML=`<div class="erow" style="cursor:default">
+        <span class="metalab">Unterkunft</span>
+        <span class="metaval" style="color:var(--muted);font-style:italic">Tagesausflug \u2013 kein Hotel</span>
+      </div>`;
+    } else {
+      hotelHTML=`<div class="erow" style="cursor:default">
+        <span class="metalab">Unterkunft</span>
+        <span class="metaval" style="color:var(--accent);font-weight:600">Noch zu buchen!</span>
+      </div>`;
+    }
+
+    // Highlights
+    const lOpen=openSections[lKey];
+    const hlSummary=s.hl.map(h=>h.name).join(' \u00b7 ');
+    const hlHTML=`<button class="erow" onclick="toggle('${lKey}')">
+      <span class="metalab">Highlights</span>
+      <span class="metaval clip">${hlSummary}</span>
+      <span class="chev ${lOpen?'open':''}"></span>
+    </button>
+    ${lOpen?`<div class="exp">${s.hl.map(h=>`
+      <div class="hlitem">
+        <div class="hltext"><span class="hlname">${h.name}</span><span class="hlnote">${h.note}</span></div>
+        <a class="hllink" href="${mq(h.name,s.city)}" target="_blank" rel="noopener">In Maps \u2192</a>
+      </div>`).join('')}</div>`:''}`;
+
+    // Notes
+    const nOpen=openSections[nKey];
+    const noteHTML=s.note?`<button class="erow" onclick="toggle('${nKey}')">
+      <span class="metalab">Notizen</span>
+      <span class="metaval clip">${s.note}</span>
+      <span class="chev ${nOpen?'open':''}"></span>
+    </button>
+    ${nOpen?`<div class="exp"><div class="notebody">${s.note}</div></div>`:''}`:'' ;
+
+    html+=`
+      ${viaHTML}
+      <div class="stop" id="stop${s.num}">
+        <div class="stopline"></div>
+        <div class="node ${nodeAc}" data-num="${s.num}" onclick="setActive(${s.num})">${s.num}</div>
+        <div class="card ${cardAc}" data-num="${s.num}">
+          <div class="cardtop">
+            <div class="cityline">
+              <span class="city">${s.city}</span>
+              <span class="kanji">${s.kanji}</span>
+            </div>
+            <span class="nights-pill">${nightsLabel}</span>
+          </div>
+          <div class="subline">
+            <span class="dates">${s.dates}</span>
+            <span class="wx"><span class="wxdot"></span>${s.weather}</span>
+          </div>
+          <span class="companion ${compCls}">${compTxt}</span>
+          <div class="divider"></div>
+          ${hotelHTML}
+          ${hlHTML}
+          ${noteHTML}
+        </div>
+      </div>`;
+  });
+
+  html+=`<div class="finish">
+    <div class="finishline"></div>
+    <div class="finishnode"></div>
+    <span class="finishtxt">HEIMREISE &middot; 6. August &middot; NH223 FRA</span>
+  </div>`;
+
+  tl.innerHTML=html;
+}
+
+// ─── OVERLAYS ────────────────────────────────────────────────────────────────
+function showNav(tab){
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('nav-'+tab).classList.add('active');
+  if(tab==='plan'){closeAll();}
+  else if(tab==='conn'){openOverlay('conn');}
+  else if(tab==='book'){openOverlay('book');}
+  else if(tab==='prep'){openOverlay('prep');}
+}
+
+function openOverlay(name){
+  document.getElementById('ov-'+name).classList.add('open');
+}
+function closeOverlay(name){
+  document.getElementById('ov-'+name).classList.remove('open');
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('nav-plan').classList.add('active');
+}
+function closeAll(){
+  ['conn','book','prep'].forEach(n=>document.getElementById('ov-'+n).classList.remove('open'));
+}
+
+function renderConnOverlay(){
+  const jr=`<div class="jr-box">
+    <div class="jr-eye">JR Pass Analyse 2026</div>
+    <div class="jr-top">
+      <div><div class="jr-ttl">14-Tage JR Pass</div><div class="jr-sub">\u274c Nicht empfehlenswert</div></div>
+      <div style="text-align:right"><div class="jr-amt">\u221231.650 Yen</div><div class="jr-amtsub">Verlust vs. Einzeltickets</div></div>
+    </div>
+    <div class="jr-grid">
+      <div class="jr-cell"><div class="jr-clabel">Pass Kosten</div><div class="jr-cval">80.000 Yen</div></div>
+      <div class="jr-cell"><div class="jr-clabel">Strecken-Wert</div><div class="jr-cval">48.350 Yen</div></div>
+    </div>
+    <div class="jr-tip">\ud83d\udca1 Einzeltickets sparen ~31.650 Yen (~190 EUR). Shinkansen online buchen.</div>
+  </div>`;
+
+  const cards=CONNECTIONS.map(c=>{
+    const bc=c.jr===true?'jr-yes':c.jr==='partial'?'jr-partial':'jr-no';
+    const bt=c.jr===true?'JR \u2713':c.jr==='partial'?'JR teilw.':'Kein JR';
+    return`<div class="conn-card">
+      <div class="conn-head">
+        <div><div class="conn-route">${c.from} \u2192 ${c.to}</div><div class="conn-date">${c.date}</div></div>
+        <span class="jr-badge ${bc}">${bt}</span>
+      </div>
+      <div class="conn-opt">
+        <div class="conn-name">${c.option}</div>
+        <div class="conn-meta"><span>\ud83d\udd50 ${c.dur}</span><span>\ud83d\udcb4 ${c.price}</span></div>
+      </div>
+      ${c.note?`<div class="conn-note">${c.note}</div>`:''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('conn-body').innerHTML=jr+cards;
+}
+
+function renderTodoList(items, checkedObj, toggleFn, bodyId){
+  const groups=[...new Set(items.map(i=>i.group))];
+  const done=items.filter(i=>checkedObj[i.id]).length;
+  const total=items.length;
+  const pct=Math.round(done/total*100);
+  const progressHTML=`<div class="progress-card">
+    <div class="progress-wrap">
+      <div class="progress-label">Fortschritt</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+    <div class="progress-count">${done}/${total}</div>
+  </div>`;
+  const groupsHTML=groups.map(g=>`
+    <div class="grp-block">
+      <div class="grp-label">${g}</div>
+      ${items.filter(i=>i.group===g).map(i=>`
+        <div class="todo-item${checkedObj[i.id]?' done':''}" onclick="${toggleFn}('${i.id}')">
+          <div class="todo-check${checkedObj[i.id]?' checked':''}">${checkedObj[i.id]?'<span class="ckmark">\u2713</span>':''}</div>
+          <div>
+            <div class="todo-text">${i.text}</div>
+            ${i.note?`<div class="todo-note">\ud83d\udca1 ${i.note}</div>`:''}
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+  document.getElementById(bodyId).innerHTML=progressHTML+groupsHTML;
+}
+
+function renderBookOverlay(){renderTodoList(TODOS,checked,'toggleTodo','book-body');}
+function renderPrepOverlay(){renderTodoList(PREP,prepChecked,'togglePrep','prep-body');}
+
+async function toggleTodo(id){
+  checked[id]=!checked[id];
+  await sbSet('jp2026-checked',JSON.stringify(checked));
+  renderBookOverlay();
+}
+async function togglePrep(id){
+  prepChecked[id]=!prepChecked[id];
+  await sbSet('jp2026-prep',JSON.stringify(prepChecked));
+  renderPrepOverlay();
+}
+
+init();
+</script>
+</body>
+</html>
